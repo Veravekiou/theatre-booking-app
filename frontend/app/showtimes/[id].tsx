@@ -9,9 +9,9 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams } from 'expo-router';
 import api from '../../services/api';
+import { getToken } from '../../services/secureStorage';
 
 type SeatAvailability = {
   showtime_id: number;
@@ -63,7 +63,7 @@ export default function ShowtimeDetailsScreen() {
 
     try {
       setBooking(true);
-      const token = await AsyncStorage.getItem('token');
+      const token = await getToken();
 
       if (!token) {
         Alert.alert('Unauthorized', 'Please login again.');

@@ -16,6 +16,7 @@ type Showtime = {
   showtime_id: number;
   show_title: string;
   theatre_name: string;
+  theatre_location: string;
   show_date: string;
   show_time: string;
   hall: string;
@@ -23,9 +24,19 @@ type Showtime = {
   available_seats: number;
 };
 
+type ShowtimeFilters = {
+  title?: string;
+  theatreName?: string;
+  location?: string;
+  date?: string;
+};
+
 export default function ShowtimesScreen() {
   const [showtimes, setShowtimes] = useState<Showtime[]>([]);
-  const [searchText, setSearchText] = useState('');
+  const [titleFilter, setTitleFilter] = useState('');
+  const [theatreNameFilter, setTheatreNameFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -33,13 +44,15 @@ export default function ShowtimesScreen() {
     fetchShowtimes();
   }, []);
 
-  const fetchShowtimes = async (title?: string) => {
+  const fetchShowtimes = async (filters?: ShowtimeFilters) => {
     try {
       setLoading(true);
       setErrorMessage('');
+
       const response = await api.get('/showtimes', {
-        params: title ? { title } : undefined
+        params: filters
       });
+
       setShowtimes(response.data);
     } catch (error: any) {
       const backendMessage =
@@ -53,7 +66,20 @@ export default function ShowtimesScreen() {
   };
 
   const handleSearch = () => {
-    fetchShowtimes(searchText.trim() || undefined);
+    fetchShowtimes({
+      title: titleFilter.trim() || undefined,
+      theatreName: theatreNameFilter.trim() || undefined,
+      location: locationFilter.trim() || undefined,
+      date: dateFilter.trim() || undefined
+    });
+  };
+
+  const handleClear = () => {
+    setTitleFilter('');
+    setTheatreNameFilter('');
+    setLocationFilter('');
+    setDateFilter('');
+    fetchShowtimes();
   };
 
   const renderShowtime = ({ item }: { item: Showtime }) => (
@@ -61,9 +87,9 @@ export default function ShowtimesScreen() {
       style={styles.card}
       onPress={() => router.push(`/showtimes/${item.showtime_id}`)}>
       <Text style={styles.title}>{item.show_title}</Text>
-      <Text style={styles.meta}>{item.theatre_name}</Text>
+      <Text style={styles.meta}>{item.theatre_name} - {item.theatre_location}</Text>
       <Text style={styles.meta}>
-        {item.show_date} • {item.show_time}
+        {item.show_date} - {item.show_time}
       </Text>
       <Text style={styles.meta}>Hall: {item.hall}</Text>
       <Text style={styles.meta}>Price: {item.price} EUR</Text>
@@ -79,13 +105,46 @@ export default function ShowtimesScreen() {
         <View style={styles.searchRow}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by show title"
+            placeholder="Show title"
             placeholderTextColor="#777"
-            value={searchText}
-            onChangeText={setSearchText}
+            value={titleFilter}
+            onChangeText={setTitleFilter}
           />
+        </View>
+
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Theatre name"
+            placeholderTextColor="#777"
+            value={theatreNameFilter}
+            onChangeText={setTheatreNameFilter}
+          />
+        </View>
+
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Location"
+            placeholderTextColor="#777"
+            value={locationFilter}
+            onChangeText={setLocationFilter}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Date YYYY-MM-DD"
+            placeholderTextColor="#777"
+            value={dateFilter}
+            onChangeText={setDateFilter}
+          />
+        </View>
+
+        <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
             <Text style={styles.searchButtonText}>Search</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+            <Text style={styles.searchButtonText}>Clear</Text>
           </TouchableOpacity>
         </View>
 
@@ -126,6 +185,11 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 8
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: 12
   },
   searchInput: {
@@ -139,10 +203,22 @@ const styles = StyleSheet.create({
     color: '#000'
   },
   searchButton: {
+    flex: 1,
     backgroundColor: '#1f5fa6',
     borderRadius: 8,
     paddingHorizontal: 14,
-    justifyContent: 'center'
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  clearButton: {
+    flex: 1,
+    backgroundColor: '#6b7280',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   searchButtonText: {
     color: '#fff',

@@ -1,11 +1,13 @@
 const pool = require('../config/db');
+const { getEffectiveSeatState } = require('../services/seatService');
 
 const getSeatAvailability = async (req, res) => {
   let conn;
   try {
     const { showtimeId } = req.query;
+    const parsedShowtimeId = Number(showtimeId);
 
-    if (!showtimeId) {
+    if (!showtimeId || !Number.isInteger(parsedShowtimeId) || parsedShowtimeId <= 0) {
       return res.status(400).json({ message: 'showtimeId is required' });
     }
 
@@ -23,7 +25,7 @@ const getSeatAvailability = async (req, res) => {
        FROM showtimes st
        JOIN shows s ON st.show_id = s.show_id
        WHERE st.showtime_id = ?`,
-      [showtimeId]
+      [parsedShowtimeId]
     );
 
     if (showtimeRows.length === 0) {
@@ -31,17 +33,16 @@ const getSeatAvailability = async (req, res) => {
     }
 
     const showtime = showtimeRows[0];
-
-    const reservedRows = await conn.query(
-      `SELECT COALESCE(SUM(quantity), 0) AS reserved_seats
-       FROM reservations
-       WHERE showtime_id = ? AND status = 'active'`,
-      [showtimeId]
-    );
-
-    const reservedSeats = Number(reservedRows[0].reserved_seats || 0);
     const capacity = Number(showtime.capacity || 0);
-    const availableSeats = Math.max(capacity - reservedSeats, 0);
+    const seatState = await getEffectiveSeatState(conn, parsedShowtimeId, capacity);
+
+    const reservedSeats = seatState.reservedSeatNumbers.length;
+    const availableSeats = seatState.availableSeatNumbers.length;
+
+    const seats = seatState.allSeatLabels.map((seatNumber) => ({
+      seat_number: seatNumber,
+      status: seatState.reservedSeatSet.has(seatNumber) ? 'reserved' : 'available'
+    }));
 
     res.json({
       showtime_id: showtime.showtime_id,
@@ -52,7 +53,8 @@ const getSeatAvailability = async (req, res) => {
       price: showtime.price,
       total_seats: capacity,
       reserved_seats: reservedSeats,
-      available_seats: availableSeats
+      available_seats: availableSeats,
+      seats
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

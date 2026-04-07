@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import api from '../../services/api';
-import { clearSession, getToken } from '../../services/secureStorage';
+import { clearSession } from '../../services/secureStorage';
 
 type Reservation = {
   reservation_id: number;
@@ -27,6 +27,8 @@ type Reservation = {
   hall: string;
   price: number;
   can_modify: number | string;
+  seat_numbers?: string[];
+  has_seat_selection?: number | string;
 };
 
 export default function ProfileScreen() {
@@ -40,23 +42,13 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
       setErrorMessage('');
-
-      const token = await getToken();
-      if (!token) {
-        setReservations([]);
-        setErrorMessage('Please login again.');
-        return;
-      }
-
-      const response = await api.get('/user/reservations', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/user/reservations');
 
       const normalizedRows: Reservation[] = (response.data || []).map((row: Reservation) => ({
         ...row,
-        can_modify: Number(row.can_modify)
+        can_modify: Number(row.can_modify),
+        has_seat_selection: Number(row.has_seat_selection || 0),
+        seat_numbers: Array.isArray(row.seat_numbers) ? row.seat_numbers : []
       }));
 
       setReservations(normalizedRows);
@@ -92,22 +84,8 @@ export default function ProfileScreen() {
 
     try {
       setBusyReservationId(reservationId);
-      const token = await getToken();
 
-      if (!token) {
-        Alert.alert('Unauthorized', 'Please login again.');
-        return;
-      }
-
-      await api.put(
-        `/reservations/${reservationId}`,
-        { quantity: parsedQuantity },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+      await api.put(`/reservations/${reservationId}`, { quantity: parsedQuantity });
 
       Alert.alert('Success', 'Reservation updated.');
       await fetchReservations();
@@ -121,18 +99,7 @@ export default function ProfileScreen() {
   const cancelReservation = async (reservationId: number) => {
     try {
       setBusyReservationId(reservationId);
-      const token = await getToken();
-
-      if (!token) {
-        Alert.alert('Unauthorized', 'Please login again.');
-        return;
-      }
-
-      await api.delete(`/reservations/${reservationId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await api.delete(`/reservations/${reservationId}`);
 
       Alert.alert('Success', 'Reservation cancelled.');
       await fetchReservations();
@@ -163,6 +130,7 @@ export default function ProfileScreen() {
 
   const renderReservation = ({ item }: { item: Reservation }) => {
     const canModify = Number(item.can_modify) === 1;
+    const hasSeatSelection = Number(item.has_seat_selection) === 1;
     const busy = busyReservationId === item.reservation_id;
 
     return (
@@ -170,13 +138,16 @@ export default function ProfileScreen() {
         <Text style={styles.title}>{item.show_title}</Text>
         <Text style={styles.meta}>{item.theatre_name}</Text>
         <Text style={styles.meta}>
-          {item.show_date} • {item.show_time}
+          {item.show_date} - {item.show_time}
         </Text>
         <Text style={styles.meta}>Hall: {item.hall}</Text>
         <Text style={styles.meta}>Price: {item.price} EUR</Text>
+        {hasSeatSelection ? (
+          <Text style={styles.meta}>Seats: {(item.seat_numbers || []).join(', ')}</Text>
+        ) : null}
         <Text style={styles.status}>Status: {item.status}</Text>
 
-        {canModify ? (
+        {canModify && !hasSeatSelection ? (
           <View style={styles.actionsContainer}>
             <TextInput
               style={styles.quantityInput}
@@ -200,6 +171,18 @@ export default function ProfileScreen() {
               disabled={busy}>
               <Text style={styles.buttonText}>Update</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cancelButton, busy && styles.buttonDisabled]}
+              onPress={() => {
+                confirmCancel(item.reservation_id);
+              }}
+              disabled={busy}>
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : canModify && hasSeatSelection ? (
+          <View style={styles.actionsContainer}>
+            <Text style={styles.lockedText}>To change seats, cancel and rebook.</Text>
             <TouchableOpacity
               style={[styles.cancelButton, busy && styles.buttonDisabled]}
               onPress={() => {

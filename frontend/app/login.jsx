@@ -15,10 +15,14 @@ export default function LoginScreen() {
         password,
       });
 
-      await saveSession(response.data.token, response.data.user);
+      await saveSession(
+        response.data.token,
+        response.data.refreshToken,
+        response.data.user
+      );
 
       Alert.alert('Success', 'Login successful');
-      router.push('/(tabs)');
+      router.replace('/(tabs)');
     } catch (error) {
       Alert.alert('Error', JSON.stringify(error.response?.data || error.message));
 console.log('LOGIN ERROR:', error.response?.data || error.message);

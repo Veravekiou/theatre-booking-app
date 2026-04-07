@@ -1,4 +1,8 @@
 const pool = require('../config/db');
+const {
+  getEffectiveSeatState,
+  normalizeSeatNumbers
+} = require('../services/seatService');
 
 const parsePositiveInteger = (value) => {
   const parsed = Number(value);
@@ -8,19 +12,43 @@ const parsePositiveInteger = (value) => {
   return parsed;
 };
 
+const parseRequestedSeatNumbers = (seatNumbers) => {
+  return normalizeSeatNumbers(seatNumbers);
+};
+
 const createReservation = async (req, res) => {
   let conn;
   try {
-    const { showtime_id, quantity } = req.body;
+    const { showtime_id, quantity, seat_numbers } = req.body;
     const user_id = req.user.userId;
     const parsedShowtimeId = parsePositiveInteger(showtime_id);
     const parsedQuantity = parsePositiveInteger(quantity);
+    const requestedSeatNumbers = parseRequestedSeatNumbers(seat_numbers);
 
-    if (!parsedShowtimeId || !parsedQuantity) {
+    if (!parsedShowtimeId) {
       return res.status(400).json({
-        message: 'showtime_id and quantity must be positive integers'
+        message: 'showtime_id must be a positive integer'
       });
     }
+
+    if (!parsedQuantity && requestedSeatNumbers.length === 0) {
+      return res.status(400).json({
+        message: 'Provide quantity or seat_numbers'
+      });
+    }
+
+    if (
+      requestedSeatNumbers.length > 0 &&
+      parsedQuantity &&
+      parsedQuantity !== requestedSeatNumbers.length
+    ) {
+      return res.status(400).json({
+        message: 'quantity must match seat_numbers length'
+      });
+    }
+
+    const effectiveQuantity =
+      requestedSeatNumbers.length > 0 ? requestedSeatNumbers.length : parsedQuantity;
 
     conn = await pool.getConnection();
     await conn.beginTransaction();
@@ -51,36 +79,74 @@ const createReservation = async (req, res) => {
 
     const capacity = Number(showtime[0].capacity || 0);
 
-    const reservedRows = await conn.query(
-      `SELECT COALESCE(SUM(quantity), 0) AS reserved_seats
-       FROM reservations
-       WHERE showtime_id = ? AND status = 'active'
-       FOR UPDATE`,
-      [parsedShowtimeId]
-    );
+    const seatState = await getEffectiveSeatState(conn, parsedShowtimeId, capacity);
+    const availableSeatSet = new Set(seatState.availableSeatNumbers);
+    const validSeatSet = new Set(seatState.allSeatLabels);
 
-    const reservedSeats = Number(reservedRows[0].reserved_seats || 0);
-    const availableSeats = Math.max(capacity - reservedSeats, 0);
-
-    if (parsedQuantity > availableSeats) {
+    if (effectiveQuantity > seatState.availableSeatNumbers.length) {
       await conn.rollback();
       return res.status(409).json({
         message: 'Not enough available seats',
-        available_seats: availableSeats
+        available_seats: seatState.availableSeatNumbers.length
       });
+    }
+
+    if (requestedSeatNumbers.length > 0) {
+      const invalidSeats = requestedSeatNumbers.filter(
+        (seatNumber) => !validSeatSet.has(seatNumber)
+      );
+
+      if (invalidSeats.length > 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          message: 'Some selected seats are invalid',
+          invalid_seats: invalidSeats
+        });
+      }
+
+      const unavailableSeats = requestedSeatNumbers.filter(
+        (seatNumber) => !availableSeatSet.has(seatNumber)
+      );
+
+      if (unavailableSeats.length > 0) {
+        await conn.rollback();
+        return res.status(409).json({
+          message: 'Some selected seats are already reserved',
+          unavailable_seats: unavailableSeats
+        });
+      }
     }
 
     const result = await conn.query(
       'INSERT INTO reservations (user_id, showtime_id, quantity, status) VALUES (?, ?, ?, ?)',
-      [user_id, parsedShowtimeId, parsedQuantity, 'active']
+      [user_id, parsedShowtimeId, effectiveQuantity, 'active']
     );
+
+    const reservationId = Number(result.insertId);
+
+    if (requestedSeatNumbers.length > 0) {
+      const placeholders = requestedSeatNumbers.map(() => '(?, ?, ?)').join(', ');
+      const values = [];
+
+      for (const seatNumber of requestedSeatNumbers) {
+        values.push(reservationId, parsedShowtimeId, seatNumber);
+      }
+
+      await conn.query(
+        `INSERT INTO reservation_seats (reservation_id, showtime_id, seat_number)
+         VALUES ${placeholders}`,
+        values
+      );
+    }
 
     await conn.commit();
 
     res.status(201).json({
       message: 'Reservation created successfully',
-      reservationId: Number(result.insertId),
-      remaining_seats: availableSeats - parsedQuantity
+      reservationId,
+      quantity: effectiveQuantity,
+      seat_numbers: requestedSeatNumbers,
+      remaining_seats: seatState.availableSeatNumbers.length - effectiveQuantity
     });
   } catch (error) {
     if (conn) {
@@ -90,6 +156,13 @@ const createReservation = async (req, res) => {
         // Ignore rollback errors to keep the original error response.
       }
     }
+
+    if (error && Number(error.errno) === 1062) {
+      return res.status(409).json({
+        message: 'Some selected seats were just reserved by another user'
+      });
+    }
+
     res.status(500).json({ message: error.message });
   } finally {
     if (conn) conn.release();
@@ -103,7 +176,7 @@ const getUserReservations = async (req, res) => {
     conn = await pool.getConnection();
 
     const reservations = await conn.query(
-      `SELECT 
+      `SELECT
          r.reservation_id,
          r.showtime_id,
          r.quantity,
@@ -115,6 +188,7 @@ const getUserReservations = async (req, res) => {
          st.show_time,
          st.hall,
          st.price,
+         GROUP_CONCAT(rs.seat_number ORDER BY rs.seat_number SEPARATOR ',') AS seat_numbers,
          CASE
            WHEN r.status = 'active' AND TIMESTAMP(st.show_date, st.show_time) > NOW() THEN 1
            ELSE 0
@@ -123,12 +197,39 @@ const getUserReservations = async (req, res) => {
        JOIN showtimes st ON r.showtime_id = st.showtime_id
        JOIN shows s ON st.show_id = s.show_id
        JOIN theatres t ON s.theatre_id = t.theatre_id
+       LEFT JOIN reservation_seats rs ON r.reservation_id = rs.reservation_id
        WHERE r.user_id = ?
+       GROUP BY
+         r.reservation_id,
+         r.showtime_id,
+         r.quantity,
+         r.status,
+         r.created_at,
+         s.title,
+         t.name,
+         st.show_date,
+         st.show_time,
+         st.hall,
+         st.price
        ORDER BY r.created_at DESC`,
       [user_id]
     );
 
-    res.json(reservations);
+    const normalizedReservations = reservations.map((reservation) => {
+      const seatNumbers = reservation.seat_numbers
+        ? String(reservation.seat_numbers)
+            .split(',')
+            .filter((seatNumber) => seatNumber.length > 0)
+        : [];
+
+      return {
+        ...reservation,
+        seat_numbers: seatNumbers,
+        has_seat_selection: seatNumbers.length > 0 ? 1 : 0
+      };
+    });
+
+    res.json(normalizedReservations);
   } catch (error) {
     res.status(500).json({ message: error.message });
   } finally {
@@ -182,6 +283,21 @@ const updateReservation = async (req, res) => {
       return res.status(400).json({ message: 'Only future reservations can be updated' });
     }
 
+    const seatRows = await conn.query(
+      `SELECT COUNT(*) AS seat_count
+       FROM reservation_seats
+       WHERE reservation_id = ?
+       FOR UPDATE`,
+      [reservationId]
+    );
+
+    if (Number(seatRows[0].seat_count || 0) > 0) {
+      await conn.rollback();
+      return res.status(400).json({
+        message: 'This reservation has selected seats. Cancel and rebook to change seats.'
+      });
+    }
+
     const showtimeId = reservation[0].showtime_id;
 
     const showtimeRows = await conn.query(
@@ -195,23 +311,15 @@ const updateReservation = async (req, res) => {
     }
 
     const capacity = Number(showtimeRows[0].capacity || 0);
+    const seatState = await getEffectiveSeatState(conn, showtimeId, capacity, {
+      ignoreReservationId: reservationId
+    });
 
-    const reservedRows = await conn.query(
-      `SELECT COALESCE(SUM(quantity), 0) AS reserved_seats
-       FROM reservations
-       WHERE showtime_id = ? AND status = 'active' AND reservation_id <> ?
-       FOR UPDATE`,
-      [showtimeId, reservationId]
-    );
-
-    const reservedSeats = Number(reservedRows[0].reserved_seats || 0);
-    const availableSeats = Math.max(capacity - reservedSeats, 0);
-
-    if (parsedQuantity > availableSeats) {
+    if (parsedQuantity > seatState.availableSeatNumbers.length) {
       await conn.rollback();
       return res.status(409).json({
         message: 'Not enough available seats',
-        available_seats: availableSeats
+        available_seats: seatState.availableSeatNumbers.length
       });
     }
 
@@ -224,7 +332,7 @@ const updateReservation = async (req, res) => {
 
     res.json({
       message: 'Reservation updated successfully',
-      remaining_seats: availableSeats - parsedQuantity
+      remaining_seats: seatState.availableSeatNumbers.length - parsedQuantity
     });
   } catch (error) {
     if (conn) {
@@ -278,6 +386,11 @@ const cancelReservation = async (req, res) => {
       await conn.rollback();
       return res.status(400).json({ message: 'Only future reservations can be cancelled' });
     }
+
+    await conn.query(
+      'DELETE FROM reservation_seats WHERE reservation_id = ?',
+      [reservationId]
+    );
 
     await conn.query(
       'UPDATE reservations SET status = ? WHERE reservation_id = ?',

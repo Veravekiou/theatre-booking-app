@@ -3,9 +3,11 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const TOKEN_KEY = 'auth_token';
+const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 const USER_KEY = 'auth_user';
 const LEGACY_KEYS = {
   [TOKEN_KEY]: 'token',
+  [REFRESH_TOKEN_KEY]: 'refreshToken',
   [USER_KEY]: 'user'
 };
 
@@ -72,13 +74,28 @@ const deleteSecureValue = async (key) => {
   }
 };
 
-export const saveSession = async (token, user) => {
+export const saveSession = async (token, refreshToken, user) => {
   await setSecureValue(TOKEN_KEY, token);
+  if (refreshToken) {
+    await setSecureValue(REFRESH_TOKEN_KEY, refreshToken);
+  }
   await setSecureValue(USER_KEY, JSON.stringify(user));
 };
 
 export const getToken = async () => {
   return getSecureValue(TOKEN_KEY);
+};
+
+export const getRefreshToken = async () => {
+  return getSecureValue(REFRESH_TOKEN_KEY);
+};
+
+export const saveAccessToken = async (token) => {
+  await setSecureValue(TOKEN_KEY, token);
+};
+
+export const saveRefreshToken = async (refreshToken) => {
+  await setSecureValue(REFRESH_TOKEN_KEY, refreshToken);
 };
 
 export const getUser = async () => {
@@ -96,5 +113,6 @@ export const getUser = async () => {
 
 export const clearSession = async () => {
   await deleteSecureValue(TOKEN_KEY);
+  await deleteSecureValue(REFRESH_TOKEN_KEY);
   await deleteSecureValue(USER_KEY);
 };

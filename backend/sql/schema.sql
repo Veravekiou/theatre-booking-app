@@ -59,6 +59,22 @@ CREATE TABLE IF NOT EXISTS reservations (
     ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS reservation_seats (
+  reservation_seat_id INT AUTO_INCREMENT PRIMARY KEY,
+  reservation_id INT NOT NULL,
+  showtime_id INT NOT NULL,
+  seat_number VARCHAR(12) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_showtime_seat (showtime_id, seat_number),
+  KEY idx_reservation_seats_reservation (reservation_id),
+  CONSTRAINT fk_reservation_seats_reservation
+    FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_reservation_seats_showtime
+    FOREIGN KEY (showtime_id) REFERENCES showtimes(showtime_id)
+    ON DELETE CASCADE
+);
+
 -- Optional sample data (adjust ids if needed):
 -- INSERT INTO theatres (name, location, description)
 -- VALUES ('National Theatre', 'Athens', 'Central stage with contemporary productions');

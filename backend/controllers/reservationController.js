@@ -26,13 +26,27 @@ const createReservation = async (req, res) => {
     await conn.beginTransaction();
 
     const showtime = await conn.query(
-      'SELECT showtime_id, capacity FROM showtimes WHERE showtime_id = ? FOR UPDATE',
+      `SELECT
+         showtime_id,
+         capacity,
+         CASE
+           WHEN TIMESTAMP(show_date, show_time) > NOW() THEN 1
+           ELSE 0
+         END AS is_future
+       FROM showtimes
+       WHERE showtime_id = ?
+       FOR UPDATE`,
       [parsedShowtimeId]
     );
 
     if (showtime.length === 0) {
       await conn.rollback();
       return res.status(404).json({ message: 'Showtime not found' });
+    }
+
+    if (Number(showtime[0].is_future) !== 1) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Cannot reserve seats for past showtimes' });
     }
 
     const capacity = Number(showtime[0].capacity || 0);
@@ -100,7 +114,11 @@ const getUserReservations = async (req, res) => {
          st.show_date,
          st.show_time,
          st.hall,
-         st.price
+         st.price,
+         CASE
+           WHEN r.status = 'active' AND TIMESTAMP(st.show_date, st.show_time) > NOW() THEN 1
+           ELSE 0
+         END AS can_modify
        FROM reservations r
        JOIN showtimes st ON r.showtime_id = st.showtime_id
        JOIN shows s ON st.show_id = s.show_id
@@ -134,9 +152,17 @@ const updateReservation = async (req, res) => {
     await conn.beginTransaction();
 
     const reservation = await conn.query(
-      `SELECT reservation_id, showtime_id, status
-       FROM reservations
-       WHERE reservation_id = ? AND user_id = ?
+      `SELECT
+         r.reservation_id,
+         r.showtime_id,
+         r.status,
+         CASE
+           WHEN TIMESTAMP(st.show_date, st.show_time) > NOW() THEN 1
+           ELSE 0
+         END AS is_future
+       FROM reservations r
+       JOIN showtimes st ON r.showtime_id = st.showtime_id
+       WHERE r.reservation_id = ? AND r.user_id = ?
        FOR UPDATE`,
       [reservationId, user_id]
     );
@@ -149,6 +175,11 @@ const updateReservation = async (req, res) => {
     if (reservation[0].status !== 'active') {
       await conn.rollback();
       return res.status(400).json({ message: 'Only active reservations can be updated' });
+    }
+
+    if (Number(reservation[0].is_future) !== 1) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Only future reservations can be updated' });
     }
 
     const showtimeId = reservation[0].showtime_id;
@@ -216,14 +247,36 @@ const cancelReservation = async (req, res) => {
     const user_id = req.user.userId;
 
     conn = await pool.getConnection();
+    await conn.beginTransaction();
 
     const reservation = await conn.query(
-      'SELECT * FROM reservations WHERE reservation_id = ? AND user_id = ?',
+      `SELECT
+         r.reservation_id,
+         r.status,
+         CASE
+           WHEN TIMESTAMP(st.show_date, st.show_time) > NOW() THEN 1
+           ELSE 0
+         END AS is_future
+       FROM reservations r
+       JOIN showtimes st ON r.showtime_id = st.showtime_id
+       WHERE r.reservation_id = ? AND r.user_id = ?
+       FOR UPDATE`,
       [reservationId, user_id]
     );
 
     if (reservation.length === 0) {
+      await conn.rollback();
       return res.status(404).json({ message: 'Reservation not found' });
+    }
+
+    if (reservation[0].status !== 'active') {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Reservation is already cancelled' });
+    }
+
+    if (Number(reservation[0].is_future) !== 1) {
+      await conn.rollback();
+      return res.status(400).json({ message: 'Only future reservations can be cancelled' });
     }
 
     await conn.query(
@@ -231,8 +284,17 @@ const cancelReservation = async (req, res) => {
       ['cancelled', reservationId]
     );
 
+    await conn.commit();
+
     res.json({ message: 'Reservation cancelled successfully' });
   } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (rollbackError) {
+        // Ignore rollback errors to keep the original error response.
+      }
+    }
     res.status(500).json({ message: error.message });
   } finally {
     if (conn) conn.release();

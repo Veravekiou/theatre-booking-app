@@ -3,7 +3,14 @@ const pool = require('../config/db');
 const getShowtimes = async (req, res) => {
   let conn;
   try {
-    const { showId, theatreId, title, date } = req.query;
+    const {
+      showId,
+      theatreId,
+      title,
+      theatreName,
+      location,
+      date
+    } = req.query;
     conn = await pool.getConnection();
 
     const conditions = [];
@@ -22,6 +29,16 @@ const getShowtimes = async (req, res) => {
     if (title) {
       conditions.push('s.title LIKE ?');
       params.push(`%${title}%`);
+    }
+
+    if (theatreName) {
+      conditions.push('t.name LIKE ?');
+      params.push(`%${theatreName}%`);
+    }
+
+    if (location) {
+      conditions.push('t.location LIKE ?');
+      params.push(`%${location}%`);
     }
 
     if (date) {

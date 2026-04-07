@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import api from '../services/api';
+import { saveSession } from '../services/secureStorage';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -15,8 +15,7 @@ export default function LoginScreen() {
         password,
       });
 
-      await AsyncStorage.setItem('token', response.data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+      await saveSession(response.data.token, response.data.user);
 
       Alert.alert('Success', 'Login successful');
       router.push('/(tabs)');

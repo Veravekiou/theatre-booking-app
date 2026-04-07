@@ -10,9 +10,9 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, router } from 'expo-router';
 import api from '../../services/api';
+import { clearSession, getToken } from '../../services/secureStorage';
 
 type Reservation = {
   reservation_id: number;
@@ -41,7 +41,7 @@ export default function ProfileScreen() {
       setLoading(true);
       setErrorMessage('');
 
-      const token = await AsyncStorage.getItem('token');
+      const token = await getToken();
       if (!token) {
         setReservations([]);
         setErrorMessage('Please login again.');
@@ -92,7 +92,7 @@ export default function ProfileScreen() {
 
     try {
       setBusyReservationId(reservationId);
-      const token = await AsyncStorage.getItem('token');
+      const token = await getToken();
 
       if (!token) {
         Alert.alert('Unauthorized', 'Please login again.');
@@ -121,7 +121,7 @@ export default function ProfileScreen() {
   const cancelReservation = async (reservationId: number) => {
     try {
       setBusyReservationId(reservationId);
-      const token = await AsyncStorage.getItem('token');
+      const token = await getToken();
 
       if (!token) {
         Alert.alert('Unauthorized', 'Please login again.');
@@ -157,7 +157,7 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.multiRemove(['token', 'user']);
+    await clearSession();
     router.replace('/login');
   };
 

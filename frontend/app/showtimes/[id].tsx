@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import api from '../../services/api';
+import { cardShadow, uiColors } from '../../constants/ui';
 
 type Seat = {
   seat_number: string;
@@ -120,63 +121,70 @@ export default function ShowtimeDetailsScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{showtime.show_title}</Text>
-        <Text style={styles.meta}>
-          {showtime.show_date} - {showtime.show_time}
-        </Text>
-        <Text style={styles.meta}>Hall: {showtime.hall}</Text>
-        <Text style={styles.meta}>Price: {showtime.price} EUR</Text>
-        <Text style={styles.meta}>Total seats: {showtime.total_seats}</Text>
-        <Text style={styles.meta}>Reserved seats: {showtime.reserved_seats}</Text>
-        <Text style={styles.seats}>Available seats: {showtime.available_seats}</Text>
-
-        <View style={styles.legendRow}>
-          <View style={[styles.legendSwatch, styles.seatAvailable]} />
-          <Text style={styles.legendText}>Available</Text>
-          <View style={[styles.legendSwatch, styles.seatSelected]} />
-          <Text style={styles.legendText}>Selected</Text>
-          <View style={[styles.legendSwatch, styles.seatReserved]} />
-          <Text style={styles.legendText}>Reserved</Text>
+        <View style={styles.infoCard}>
+          <Text style={styles.title}>{showtime.show_title}</Text>
+          <Text style={styles.meta}>
+            {showtime.show_date} - {showtime.show_time}
+          </Text>
+          <Text style={styles.meta}>Hall: {showtime.hall}</Text>
+          <Text style={styles.meta}>Price: {showtime.price} EUR</Text>
+          <Text style={styles.meta}>Total seats: {showtime.total_seats}</Text>
+          <Text style={styles.meta}>Reserved seats: {showtime.reserved_seats}</Text>
+          <Text style={styles.seats}>Available seats: {showtime.available_seats}</Text>
         </View>
 
-        <View style={styles.seatGrid}>
-          {showtime.seats.map((seat) => {
-            const isSelected = selectedSeatNumbers.includes(seat.seat_number);
-            const isReserved = seat.status === 'reserved';
+        <View style={styles.legendCard}>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendSwatch, styles.seatAvailable]} />
+            <Text style={styles.legendText}>Available</Text>
+            <View style={[styles.legendSwatch, styles.seatSelected]} />
+            <Text style={styles.legendText}>Selected</Text>
+            <View style={[styles.legendSwatch, styles.seatReserved]} />
+            <Text style={styles.legendText}>Reserved</Text>
+          </View>
+        </View>
 
-            return (
-              <TouchableOpacity
-                key={seat.seat_number}
-                style={[
-                  styles.seatButton,
-                  isReserved
-                    ? styles.seatReserved
-                    : isSelected
-                      ? styles.seatSelected
-                      : styles.seatAvailable
-                ]}
-                onPress={() => {
-                  toggleSeatSelection(seat);
-                }}
-                disabled={isReserved || booking}>
-                <Text
+        <View style={styles.seatGridCard}>
+          <View style={styles.seatGrid}>
+            {showtime.seats.map((seat) => {
+              const isSelected = selectedSeatNumbers.includes(seat.seat_number);
+              const isReserved = seat.status === 'reserved';
+
+              return (
+                <TouchableOpacity
+                  key={seat.seat_number}
                   style={[
-                    styles.seatText,
-                    (isSelected || isReserved) && styles.seatTextInverted
-                  ]}>
-                  {seat.seat_number}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+                    styles.seatButton,
+                    isReserved
+                      ? styles.seatReserved
+                      : isSelected
+                        ? styles.seatSelected
+                        : styles.seatAvailable
+                  ]}
+                  onPress={() => {
+                    toggleSeatSelection(seat);
+                  }}
+                  disabled={isReserved || booking}>
+                  <Text
+                    style={[
+                      styles.seatText,
+                      (isSelected || isReserved) && styles.seatTextInverted
+                    ]}>
+                    {seat.seat_number}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
-        <Text style={styles.selectionInfo}>
-          Selected seats ({selectedSeatNumbers.length}):{' '}
-          {selectedSeatNumbers.length > 0 ? selectedSeatNumbers.join(', ') : 'None'}
-        </Text>
-
-        <Text style={styles.selectionInfo}>Total: {totalPrice} EUR</Text>
+        <View style={styles.selectionCard}>
+          <Text style={styles.selectionInfo}>
+            Selected seats ({selectedSeatNumbers.length}):{' '}
+            {selectedSeatNumbers.length > 0 ? selectedSeatNumbers.join(', ') : 'None'}
+          </Text>
+          <Text style={styles.selectionTotal}>Total: {totalPrice} EUR</Text>
+        </View>
 
         <TouchableOpacity
           style={[
@@ -197,7 +205,7 @@ export default function ShowtimeDetailsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f2f2f2'
+    backgroundColor: uiColors.background
   },
   container: {
     padding: 16,
@@ -208,20 +216,37 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: 8,
-    color: '#111'
+    color: uiColors.text
   },
   meta: {
     fontSize: 15,
     marginBottom: 4,
-    color: '#333'
+    color: uiColors.textMuted
   },
   seats: {
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 2,
     fontWeight: '700',
-    color: '#1f5fa6'
+    color: uiColors.primaryDark
+  },
+  infoCard: {
+    backgroundColor: uiColors.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: uiColors.border,
+    marginBottom: 10,
+    ...cardShadow
+  },
+  legendCard: {
+    backgroundColor: uiColors.surface,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: uiColors.border,
+    marginBottom: 10
   },
   legendRow: {
     flexDirection: 'row',
@@ -236,14 +261,22 @@ const styles = StyleSheet.create({
     borderRadius: 2
   },
   legendText: {
-    color: '#444',
+    color: uiColors.textMuted,
     marginRight: 6,
     fontSize: 13
   },
+  seatGridCard: {
+    backgroundColor: uiColors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: uiColors.border,
+    padding: 8,
+    marginBottom: 10,
+    ...cardShadow
+  },
   seatGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 12
+    flexWrap: 'wrap'
   },
   seatButton: {
     width: '18%',
@@ -253,37 +286,50 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   seatAvailable: {
-    backgroundColor: '#e5f4ea',
+    backgroundColor: '#e9f8ef',
     borderWidth: 1,
-    borderColor: '#7abf8d'
+    borderColor: '#7ac799'
   },
   seatSelected: {
-    backgroundColor: '#1f5fa6',
+    backgroundColor: uiColors.primary,
     borderWidth: 1,
-    borderColor: '#1f5fa6'
+    borderColor: uiColors.primary
   },
   seatReserved: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: '#d8dee9',
     borderWidth: 1,
     borderColor: '#9ca3af'
   },
   seatText: {
-    color: '#111',
+    color: uiColors.text,
     fontWeight: '700',
     fontSize: 12
   },
   seatTextInverted: {
     color: '#fff'
   },
-  selectionInfo: {
-    fontSize: 14,
-    color: '#333',
+  selectionCard: {
+    backgroundColor: uiColors.surfaceMuted,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: uiColors.border,
+    padding: 12,
     marginBottom: 8
   },
+  selectionInfo: {
+    fontSize: 14,
+    color: uiColors.textMuted,
+    marginBottom: 8
+  },
+  selectionTotal: {
+    fontSize: 16,
+    color: uiColors.text,
+    fontWeight: '700'
+  },
   button: {
-    backgroundColor: '#1f5fa6',
-    borderRadius: 8,
-    paddingVertical: 12,
+    backgroundColor: uiColors.primary,
+    borderRadius: 12,
+    paddingVertical: 13,
     marginTop: 6
   },
   buttonDisabled: {
@@ -296,6 +342,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#333'
+    color: uiColors.textMuted
   }
 });

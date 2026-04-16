@@ -13,6 +13,7 @@ import {
 import { useFocusEffect, router } from 'expo-router';
 import api from '../../services/api';
 import { clearSession } from '../../services/secureStorage';
+import { cardShadow, uiColors } from '../../constants/ui';
 
 type Reservation = {
   reservation_id: number;
@@ -145,7 +146,13 @@ export default function ProfileScreen() {
         {hasSeatSelection ? (
           <Text style={styles.meta}>Seats: {(item.seat_numbers || []).join(', ')}</Text>
         ) : null}
-        <Text style={styles.status}>Status: {item.status}</Text>
+        <View
+          style={[
+            styles.statusPill,
+            item.status === 'active' ? styles.statusActive : styles.statusCancelled
+          ]}>
+          <Text style={styles.statusText}>{String(item.status).toUpperCase()}</Text>
+        </View>
 
         {canModify && !hasSeatSelection ? (
           <View style={styles.actionsContainer}>
@@ -203,7 +210,10 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.headerRow}>
-          <Text style={styles.screenTitle}>My Reservations</Text>
+          <View>
+            <Text style={styles.screenTitle}>My Reservations</Text>
+            <Text style={styles.subtitle}>Manage your upcoming bookings.</Text>
+          </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -230,7 +240,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f2f2f2'
+    backgroundColor: uiColors.background
   },
   container: {
     flex: 1,
@@ -243,46 +253,65 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   screenTitle: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#111'
+    fontSize: 28,
+    fontWeight: '800',
+    color: uiColors.text
+  },
+  subtitle: {
+    color: uiColors.textMuted,
+    marginTop: 2
   },
   logoutButton: {
-    backgroundColor: '#444',
+    backgroundColor: '#334155',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8
+    borderRadius: 10
   },
   logoutText: {
-    color: '#fff',
+    color: uiColors.surface,
     fontWeight: '600'
   },
   listContent: {
     paddingBottom: 24
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: uiColors.surface,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
+    borderColor: uiColors.border,
+    borderRadius: 14,
     padding: 12,
-    marginBottom: 10
+    marginBottom: 12,
+    ...cardShadow
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 4,
-    color: '#111'
+    color: uiColors.text
   },
   meta: {
-    color: '#333',
+    color: uiColors.textMuted,
     marginBottom: 2
   },
-  status: {
-    marginTop: 6,
-    marginBottom: 8,
+  statusPill: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    marginBottom: 10,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4
+  },
+  statusActive: {
+    backgroundColor: '#eaf8f1'
+  },
+  statusCancelled: {
+    backgroundColor: '#fdecec'
+  },
+  statusText: {
     fontWeight: '700',
-    color: '#1f5fa6'
+    fontSize: 12,
+    letterSpacing: 0.4,
+    color: uiColors.text
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -292,35 +321,35 @@ const styles = StyleSheet.create({
   quantityInput: {
     width: 64,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: uiColors.border,
+    borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 8,
     textAlign: 'center',
-    color: '#111',
-    backgroundColor: '#fff'
+    color: uiColors.text,
+    backgroundColor: uiColors.surface
   },
   updateButton: {
-    backgroundColor: '#0d6b38',
+    backgroundColor: uiColors.success,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 8
+    borderRadius: 10
   },
   cancelButton: {
-    backgroundColor: '#b33232',
+    backgroundColor: uiColors.danger,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 8
+    borderRadius: 10
   },
   buttonText: {
-    color: '#fff',
+    color: uiColors.surface,
     fontWeight: '700'
   },
   buttonDisabled: {
     opacity: 0.7
   },
   lockedText: {
-    color: '#666',
+    color: '#64748b',
     fontStyle: 'italic'
   },
   loader: {
@@ -328,12 +357,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#444',
+    color: uiColors.textMuted,
     marginTop: 24
   },
   errorText: {
     textAlign: 'center',
-    color: '#b00020',
+    color: uiColors.danger,
     marginTop: 24
   }
 });

@@ -10,6 +10,7 @@ import {
   View
 } from 'react-native';
 import api from '../../services/api';
+import { cardShadow, uiColors } from '../../constants/ui';
 
 type Theatre = {
   theatre_id: number;
@@ -66,20 +67,21 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Text style={styles.title}>Theatres</Text>
+        <Text style={styles.title}>Discover Theatres</Text>
+        <Text style={styles.subtitle}>Find venues by name or location.</Text>
 
         <View style={styles.searchColumn}>
           <TextInput
             style={styles.input}
             placeholder="Theatre name"
-            placeholderTextColor="#777"
+            placeholderTextColor="#7b8798"
             value={nameFilter}
             onChangeText={setNameFilter}
           />
           <TextInput
             style={styles.input}
             placeholder="Location"
-            placeholderTextColor="#777"
+            placeholderTextColor="#7b8798"
             value={locationFilter}
             onChangeText={setLocationFilter}
           />
@@ -101,11 +103,14 @@ export default function HomeScreen() {
           <FlatList
             data={theatres}
             keyExtractor={(item) => item.theatre_id.toString()}
+            contentContainerStyle={styles.listContent}
             renderItem={({ item }) => (
               <View style={styles.card}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.text}>{item.location}</Text>
-                <Text style={styles.text}>{item.description}</Text>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  <Text style={styles.locationBadge}>{item.location}</Text>
+                </View>
+                <Text style={styles.text}>{item.description || 'No description available.'}</Text>
               </View>
             )}
             ListEmptyComponent={
@@ -121,32 +126,43 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: uiColors.background,
   },
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#f2f2f2',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: uiColors.background,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
+    textAlign: 'left',
+    color: uiColors.text,
+    fontWeight: '800',
+  },
+  subtitle: {
+    color: uiColors.textMuted,
+    marginTop: 4,
     marginBottom: 12,
-    textAlign: 'center',
-    color: '#000',
-    fontWeight: 'bold',
   },
   searchColumn: {
+    backgroundColor: uiColors.surface,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: uiColors.border,
     marginBottom: 12,
     gap: 8,
+    ...cardShadow,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: uiColors.surface,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: uiColors.border,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: '#000',
+    color: uiColors.text,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -154,51 +170,71 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     flex: 1,
-    backgroundColor: '#1f5fa6',
-    borderRadius: 8,
-    paddingVertical: 10,
+    backgroundColor: uiColors.primary,
+    borderRadius: 10,
+    paddingVertical: 11,
     alignItems: 'center',
   },
   clearButton: {
     flex: 1,
-    backgroundColor: '#6b7280',
-    borderRadius: 8,
-    paddingVertical: 10,
+    backgroundColor: '#64748b',
+    borderRadius: 10,
+    paddingVertical: 11,
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: uiColors.surface,
     fontWeight: '700',
   },
+  listContent: {
+    paddingBottom: 28,
+  },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: uiColors.surface,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: uiColors.border,
     padding: 12,
-    borderRadius: 10,
-    marginBottom: 10,
+    borderRadius: 14,
+    marginBottom: 12,
+    ...cardShadow,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   name: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: uiColors.text,
+    marginBottom: 2,
+  },
+  locationBadge: {
+    color: uiColors.primaryDark,
+    backgroundColor: uiColors.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 12,
+    overflow: 'hidden',
+    fontWeight: '600',
   },
   text: {
-    color: '#333',
-    marginBottom: 2,
+    color: uiColors.textMuted,
+    lineHeight: 20,
   },
   emptyText: {
     textAlign: 'center',
-    color: '#333',
-    marginTop: 20,
+    color: uiColors.textMuted,
+    marginTop: 24,
   },
   loader: {
     marginTop: 24,
   },
   errorText: {
     textAlign: 'center',
-    color: '#b00020',
+    color: uiColors.danger,
     marginTop: 24,
   },
 });

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import api from '../../services/api';
+import { cardShadow, uiColors } from '../../constants/ui';
 
 type Showtime = {
   showtime_id: number;
@@ -101,51 +102,54 @@ export default function ShowtimesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.screenTitle}>Showtimes</Text>
+        <Text style={styles.subtitle}>Search by title, theatre, location or date.</Text>
 
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Show title"
-            placeholderTextColor="#777"
-            value={titleFilter}
-            onChangeText={setTitleFilter}
-          />
-        </View>
+        <View style={styles.searchPanel}>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Show title"
+              placeholderTextColor="#7b8798"
+              value={titleFilter}
+              onChangeText={setTitleFilter}
+            />
+          </View>
 
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Theatre name"
-            placeholderTextColor="#777"
-            value={theatreNameFilter}
-            onChangeText={setTheatreNameFilter}
-          />
-        </View>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Theatre name"
+              placeholderTextColor="#7b8798"
+              value={theatreNameFilter}
+              onChangeText={setTheatreNameFilter}
+            />
+          </View>
 
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Location"
-            placeholderTextColor="#777"
-            value={locationFilter}
-            onChangeText={setLocationFilter}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Date YYYY-MM-DD"
-            placeholderTextColor="#777"
-            value={dateFilter}
-            onChangeText={setDateFilter}
-          />
-        </View>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Location"
+              placeholderTextColor="#7b8798"
+              value={locationFilter}
+              onChangeText={setLocationFilter}
+            />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Date YYYY-MM-DD"
+              placeholderTextColor="#7b8798"
+              value={dateFilter}
+              onChangeText={setDateFilter}
+            />
+          </View>
 
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-            <Text style={styles.searchButtonText}>Search</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
-            <Text style={styles.searchButtonText}>Clear</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+              <Text style={styles.searchButtonText}>Search</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+              <Text style={styles.searchButtonText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -157,6 +161,7 @@ export default function ShowtimesScreen() {
             data={showtimes}
             keyExtractor={(item) => item.showtime_id.toString()}
             renderItem={renderShowtime}
+            contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               <Text style={styles.emptyText}>No showtimes found</Text>
             }
@@ -170,17 +175,30 @@ export default function ShowtimesScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f2f2f2'
+    backgroundColor: uiColors.background
   },
   container: {
     flex: 1,
     padding: 16
   },
   screenTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 30,
+    fontWeight: '800',
+    marginBottom: 4,
+    color: uiColors.text
+  },
+  subtitle: {
+    color: uiColors.textMuted,
+    marginBottom: 12
+  },
+  searchPanel: {
+    backgroundColor: uiColors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: uiColors.border,
+    padding: 12,
     marginBottom: 12,
-    textAlign: 'center'
+    ...cardShadow
   },
   searchRow: {
     flexDirection: 'row',
@@ -195,69 +213,73 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: uiColors.border,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#fff',
-    color: '#000'
+    backgroundColor: uiColors.surface,
+    color: uiColors.text
   },
   searchButton: {
     flex: 1,
-    backgroundColor: '#1f5fa6',
-    borderRadius: 8,
+    backgroundColor: uiColors.primary,
+    borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     justifyContent: 'center',
     alignItems: 'center'
   },
   clearButton: {
     flex: 1,
-    backgroundColor: '#6b7280',
-    borderRadius: 8,
+    backgroundColor: '#64748b',
+    borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     justifyContent: 'center',
     alignItems: 'center'
   },
   searchButtonText: {
-    color: '#fff',
-    fontWeight: 'bold'
+    color: uiColors.surface,
+    fontWeight: '700'
+  },
+  listContent: {
+    paddingBottom: 26
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: uiColors.surface,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: uiColors.border,
     padding: 12,
-    marginBottom: 10
+    marginBottom: 12,
+    ...cardShadow
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: 4,
-    color: '#111'
+    color: uiColors.text
   },
   meta: {
-    color: '#333',
+    color: uiColors.textMuted,
     marginBottom: 2
   },
   seats: {
     marginTop: 6,
     fontWeight: '700',
-    color: '#1f5fa6'
+    color: uiColors.primaryDark
   },
   loader: {
     marginTop: 24
   },
   emptyText: {
     textAlign: 'center',
-    color: '#444',
+    color: uiColors.textMuted,
     marginTop: 24
   },
   errorText: {
     textAlign: 'center',
-    color: '#b00020',
+    color: uiColors.danger,
     marginTop: 24
   }
 });

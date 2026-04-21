@@ -21,6 +21,8 @@ The application supports the following core features:
 - View reservation history from the user profile
 - Cancel reservations
 - Update reservation quantity when seat-level selection is not used
+- Automatic access-token refresh in the mobile client
+- Transaction-safe reservation handling to reduce double-booking conflicts
 
 ## Tech Stack
 
@@ -57,7 +59,7 @@ This will create the `theatre_booking` database and the required tables:
 
 ### 3. Configure environment variables for the backend
 
-Create a file named `.env` inside the `backend/` folder with the following values:
+Create a file named `.env` inside the `backend/` folder using [backend/.env.example](/c:/theatre-booking-app/backend/.env.example):
 
 ```env
 DB_HOST=127.0.0.1
@@ -120,13 +122,15 @@ The frontend uses:
 EXPO_PUBLIC_API_URL
 ```
 
-Create a file named `.env` inside the `frontend/` folder:
+Create a file named `.env` inside the `frontend/` folder using [frontend/.env.example](/c:/theatre-booking-app/frontend/.env.example):
 
 ```env
 EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:5000/api
 ```
 
 If you run the mobile app on a physical device, replace `YOUR_LOCAL_IP` with the local IP address of the computer running the backend.
+
+If `EXPO_PUBLIC_API_URL` is not set, the app will try to detect the current Expo host automatically. This helps local demos, but setting the variable explicitly is still the safest option for submission and grading.
 
 Example:
 
@@ -172,6 +176,17 @@ Main backend endpoints:
 - `PUT /api/reservations/:id`
 - `DELETE /api/reservations/:id`
 - `GET /api/profile`
+
+## Architecture Notes
+
+- Frontend: Expo React Native app with Expo Router screens for auth, browsing, seat selection, and profile/history
+- Backend: Express REST API with route/controller separation and JWT middleware
+- Database: MariaDB schema with foreign keys between users, theatres, shows, showtimes, and reservations
+- Booking consistency: reservation creation and updates use database transactions and row locking for seat availability checks
+
+## Submission Support
+
+- Environment examples are included in [backend/.env.example](/c:/theatre-booking-app/backend/.env.example) and [frontend/.env.example](/c:/theatre-booking-app/frontend/.env.example).
 
 ## Project Structure
 

@@ -184,5 +184,3 @@ You can run the app with:
 - The backend must be running before the frontend can fetch data
 - For real-device testing, frontend and backend must be on the same local network
 - Seed scripts populate sample theatres, shows, and multiple future showtimes
-
-Created for the CN6035 Mobile & Distributed Systems assignment.

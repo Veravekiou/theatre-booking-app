@@ -1,4 +1,6 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import {
   clearSession,
   getRefreshToken,
@@ -7,7 +9,33 @@ import {
   saveRefreshToken
 } from './secureStorage';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.17:5000/api';
+const getApiBaseUrl = () => {
+  const envUrl = String(process.env.EXPO_PUBLIC_API_URL || '').trim();
+  if (envUrl) {
+    return envUrl;
+  }
+
+  const runtimeHost =
+    Constants.expoConfig?.hostUri ||
+    Constants.expoGoConfig?.debuggerHost ||
+    Constants.manifest?.debuggerHost ||
+    '';
+
+  if (runtimeHost) {
+    const host = String(runtimeHost).split(':')[0];
+    if (host) {
+      return `http://${host}:5000/api`;
+    }
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5000/api';
+  }
+
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -178,7 +178,7 @@ You can run the app with:
 - Database: MariaDB schema with foreign keys between users, theatres, shows, showtimes, reservations, and reserved seats
 - Concurrency handling: reservations use database transactions and row locking for better seat consistency
 
-## Submission Notes
+## Notes
 
 - `backend/.env.example` and `frontend/.env.example` are included for setup guidance
 - The backend must be running before the frontend can fetch data

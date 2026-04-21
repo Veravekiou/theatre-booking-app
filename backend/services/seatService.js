@@ -1,4 +1,6 @@
 const SEATS_PER_ROW = 10;
+const VIP_ROW_COUNT = 2;
+const VIP_PRICE_MULTIPLIER = 1.15;
 
 const toRowLabel = (rowIndex) => {
   let value = rowIndex + 1;
@@ -11,6 +13,25 @@ const toRowLabel = (rowIndex) => {
   }
 
   return label;
+};
+
+const rowLabelToIndex = (rowLabel) => {
+  const normalized = String(rowLabel || '').trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+
+  let value = 0;
+
+  for (let i = 0; i < normalized.length; i += 1) {
+    const code = normalized.charCodeAt(i);
+    if (code < 65 || code > 90) {
+      return null;
+    }
+    value = value * 26 + (code - 64);
+  }
+
+  return value;
 };
 
 const normalizeSeatNumber = (seatNumber) => {
@@ -29,6 +50,69 @@ const normalizeSeatNumbers = (seatNumbers = []) => {
         .filter((seatNumber) => seatNumber.length > 0)
     )
   );
+};
+
+const parseSeatReference = (seatNumber) => {
+  const match = /^([A-Z]+)(\d+)$/.exec(normalizeSeatNumber(seatNumber));
+  if (!match) {
+    return null;
+  }
+
+  return {
+    rowLabel: match[1],
+    seatIndex: Number(match[2])
+  };
+};
+
+const isVipSeatNumber = (seatNumber, vipRowCount = VIP_ROW_COUNT) => {
+  const parsed = parseSeatReference(seatNumber);
+  if (!parsed) {
+    return false;
+  }
+
+  const rowIndex = rowLabelToIndex(parsed.rowLabel);
+  if (!rowIndex) {
+    return false;
+  }
+
+  return rowIndex <= vipRowCount;
+};
+
+const roundCurrency = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric * 100) / 100;
+};
+
+const calculateSeatPricing = (basePrice, seatNumbers = [], quantity = 0) => {
+  const normalizedBasePrice = roundCurrency(basePrice);
+  const normalizedSeatNumbers = normalizeSeatNumbers(seatNumbers);
+  const quantityNumber = Math.max(Number(quantity) || 0, 0);
+  const effectiveQuantity =
+    normalizedSeatNumbers.length > 0 ? normalizedSeatNumbers.length : quantityNumber;
+
+  const vipSeatCount = normalizedSeatNumbers.reduce(
+    (count, seatNumber) => count + (isVipSeatNumber(seatNumber) ? 1 : 0),
+    0
+  );
+
+  const normalSeatCount = Math.max(effectiveQuantity - vipSeatCount, 0);
+  const vipSeatPrice = roundCurrency(normalizedBasePrice * VIP_PRICE_MULTIPLIER);
+  const totalPrice = roundCurrency(
+    normalSeatCount * normalizedBasePrice + vipSeatCount * vipSeatPrice
+  );
+
+  return {
+    basePrice: normalizedBasePrice,
+    vipPriceMultiplier: VIP_PRICE_MULTIPLIER,
+    vipSeatPrice,
+    vipSeatCount,
+    normalSeatCount,
+    effectiveQuantity,
+    totalPrice
+  };
 };
 
 const generateSeatLabels = (capacity) => {
@@ -146,8 +230,13 @@ const getEffectiveSeatState = async (conn, showtimeId, capacity, options = {}) =
 };
 
 module.exports = {
+  VIP_ROW_COUNT,
+  VIP_PRICE_MULTIPLIER,
   normalizeSeatNumber,
   normalizeSeatNumbers,
+  parseSeatReference,
+  isVipSeatNumber,
+  calculateSeatPricing,
   generateSeatLabels,
   getEffectiveSeatState
 };

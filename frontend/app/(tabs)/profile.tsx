@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,10 +10,12 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { useFocusEffect, router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import api from '../../services/api';
-import { clearSession } from '../../services/secureStorage';
+import { clearSession, getUser } from '../../services/secureStorage';
 import { cardShadow, uiColors } from '../../constants/ui';
+import { getErrorMessage } from '../../utils/errorMessage';
+import { formatCurrency, formatShowDateTime } from '../../utils/formatters';
 
 type Reservation = {
   reservation_id: number;
@@ -27,21 +29,56 @@ type Reservation = {
   show_time: string;
   hall: string;
   price: number;
+  total_price?: number;
   can_modify: number | string;
   seat_numbers?: string[];
   has_seat_selection?: number | string;
 };
 
+type SessionUser = {
+  name?: string;
+  email?: string;
+};
+
 export default function ProfileScreen() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busyReservationId, setBusyReservationId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const fetchReservations = useCallback(async () => {
+  useEffect(() => {
+    const loadUser = async () => {
+      const storedUser = await getUser();
+      setUser(storedUser);
+    };
+
+    loadUser();
+  }, []);
+
+  const formatCreatedAt = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleString('el-GR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const fetchReservations = useCallback(async (withLoading = true) => {
     try {
-      setLoading(true);
+      if (withLoading) {
+        setLoading(true);
+      }
+
       setErrorMessage('');
       const response = await api.get('/user/reservations');
 
@@ -59,12 +96,13 @@ export default function ProfileScreen() {
         drafts[row.reservation_id] = String(row.quantity);
       });
       setQuantityDrafts(drafts);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setReservations([]);
-      const message = error?.response?.data?.message || error?.message || 'Failed to load reservations';
-      setErrorMessage(String(message));
+      setErrorMessage(getErrorMessage(error, 'Failed to load reservations.'));
     } finally {
-      setLoading(false);
+      if (withLoading) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -90,8 +128,8 @@ export default function ProfileScreen() {
 
       Alert.alert('Success', 'Reservation updated.');
       await fetchReservations();
-    } catch (error: any) {
-      Alert.alert('Error', JSON.stringify(error.response?.data || error.message));
+    } catch (error: unknown) {
+      Alert.alert('Update failed', getErrorMessage(error, 'Unable to update reservation.'));
     } finally {
       setBusyReservationId(null);
     }
@@ -104,10 +142,19 @@ export default function ProfileScreen() {
 
       Alert.alert('Success', 'Reservation cancelled.');
       await fetchReservations();
-    } catch (error: any) {
-      Alert.alert('Error', JSON.stringify(error.response?.data || error.message));
+    } catch (error: unknown) {
+      Alert.alert('Cancellation failed', getErrorMessage(error, 'Unable to cancel reservation.'));
     } finally {
       setBusyReservationId(null);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await fetchReservations(false);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -129,107 +176,196 @@ export default function ProfileScreen() {
     router.replace('/login');
   };
 
+  const handleProfilePhotoPress = () => {
+    Alert.alert('Profile photo', 'Photo upload can be connected here.');
+  };
+
+  const activeReservations = reservations.filter((item) => item.status === 'active').length;
+  const cancelledReservations = reservations.filter((item) => item.status !== 'active').length;
+  const displayName = user?.name?.trim() || 'Theatre Guest';
+  const displayEmail = user?.email?.trim() || 'Signed in member';
+  const nameParts = displayName.split(' ').filter(Boolean);
+  const avatarInitials = nameParts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'TG';
+
   const renderReservation = ({ item }: { item: Reservation }) => {
     const canModify = Number(item.can_modify) === 1;
     const hasSeatSelection = Number(item.has_seat_selection) === 1;
     const busy = busyReservationId === item.reservation_id;
+    const seatsLabel = (item.seat_numbers || []).join(', ');
 
     return (
-      <View style={styles.card}>
-        <Text style={styles.title}>{item.show_title}</Text>
-        <Text style={styles.meta}>{item.theatre_name}</Text>
-        <Text style={styles.meta}>
-          {item.show_date} - {item.show_time}
-        </Text>
-        <Text style={styles.meta}>Hall: {item.hall}</Text>
-        <Text style={styles.meta}>Price: {item.price} EUR</Text>
-        {hasSeatSelection ? (
-          <Text style={styles.meta}>Seats: {(item.seat_numbers || []).join(', ')}</Text>
-        ) : null}
-        <View
-          style={[
-            styles.statusPill,
-            item.status === 'active' ? styles.statusActive : styles.statusCancelled
-          ]}>
-          <Text style={styles.statusText}>{String(item.status).toUpperCase()}</Text>
+      <View style={styles.reservationCard}>
+        <View style={styles.reservationHeader}>
+          <View style={styles.reservationTitleWrap}>
+            <Text style={styles.reservationKicker}>{item.status === 'active' ? 'Upcoming booking' : 'Past booking'}</Text>
+            <Text style={styles.reservationTitle}>{item.show_title}</Text>
+            <Text style={styles.reservationSchedule}>
+              {formatShowDateTime(item.show_date, item.show_time)}
+            </Text>
+            <Text style={styles.reservationVenue}>{item.theatre_name} / {item.hall}</Text>
+          </View>
+          <View
+            style={[
+              styles.statusPill,
+              item.status === 'active' ? styles.statusActive : styles.statusCancelled
+            ]}>
+            <Text style={styles.statusText}>{String(item.status).toUpperCase()}</Text>
+          </View>
         </View>
 
-        {canModify && !hasSeatSelection ? (
-          <View style={styles.actionsContainer}>
-            <TextInput
-              style={styles.quantityInput}
-              keyboardType="numeric"
-              value={quantityDrafts[item.reservation_id] || ''}
-              onChangeText={(value) => {
-                setQuantityDrafts((prev) => ({
-                  ...prev,
-                  [item.reservation_id]: value
-                }));
-              }}
-              placeholder="Qty"
-              placeholderTextColor="#777"
-              editable={!busy}
-            />
-            <TouchableOpacity
-              style={[styles.updateButton, busy && styles.buttonDisabled]}
-              onPress={() => {
-                updateReservation(item.reservation_id);
-              }}
-              disabled={busy}>
-              <Text style={styles.buttonText}>Update</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.cancelButton, busy && styles.buttonDisabled]}
-              onPress={() => {
-                confirmCancel(item.reservation_id);
-              }}
-              disabled={busy}>
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
+        <View style={styles.reservationMetaRow}>
+          <View style={styles.metaStat}>
+            <Text style={styles.metaStatLabel}>Tickets</Text>
+            <Text style={styles.metaStatValue}>{item.quantity}</Text>
           </View>
-        ) : canModify && hasSeatSelection ? (
-          <View style={styles.actionsContainer}>
-            <Text style={styles.lockedText}>To change seats, cancel and rebook.</Text>
-            <TouchableOpacity
-              style={[styles.cancelButton, busy && styles.buttonDisabled]}
-              onPress={() => {
-                confirmCancel(item.reservation_id);
-              }}
-              disabled={busy}>
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
+          <View style={styles.metaDivider} />
+          <View style={styles.metaStat}>
+            <Text style={styles.metaStatLabel}>Total</Text>
+            <Text style={styles.metaStatValue}>{formatCurrency(item.total_price ?? item.price)}</Text>
           </View>
-        ) : (
-          <Text style={styles.lockedText}>This reservation can no longer be modified.</Text>
-        )}
+          <View style={styles.metaDivider} />
+          <View style={styles.metaStat}>
+            <Text style={styles.metaStatLabel}>Booked</Text>
+            <Text style={styles.metaStatValue}>{formatCreatedAt(item.created_at)}</Text>
+          </View>
+        </View>
+
+        {hasSeatSelection && seatsLabel ? (
+          <View style={styles.inlineDetailRow}>
+            <Text style={styles.inlineDetailLabel}>Seats</Text>
+            <Text style={styles.inlineDetailValue}>{seatsLabel}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.reservationFooter}>
+          {canModify && !hasSeatSelection ? (
+            <View style={styles.reservationActionsRow}>
+              <View style={styles.inputShell}>
+                <Text style={styles.inputLabel}>Qty</Text>
+                <TextInput
+                  style={styles.quantityInput}
+                  keyboardType="numeric"
+                  value={quantityDrafts[item.reservation_id] || ''}
+                  onChangeText={(value) => {
+                    setQuantityDrafts((prev) => ({
+                      ...prev,
+                      [item.reservation_id]: value
+                    }));
+                  }}
+                  placeholder="1"
+                  placeholderTextColor="#8d7a6b"
+                  editable={!busy}
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.updateButton, busy && styles.buttonDisabled]}
+                onPress={() => {
+                  updateReservation(item.reservation_id);
+                }}
+                disabled={busy}>
+                <Text style={styles.primaryButtonText}>Save changes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cancelButton, busy && styles.buttonDisabled]}
+                onPress={() => {
+                  confirmCancel(item.reservation_id);
+                }}
+                disabled={busy}>
+                <Text style={styles.secondaryButtonText}>Cancel booking</Text>
+              </TouchableOpacity>
+            </View>
+          ) : canModify && hasSeatSelection ? (
+            <View style={styles.stackedActions}>
+              <Text style={styles.lockedText}>To change seats, cancel and rebook.</Text>
+              <TouchableOpacity
+                style={[styles.cancelButton, busy && styles.buttonDisabled]}
+                onPress={() => {
+                  confirmCancel(item.reservation_id);
+                }}
+                disabled={busy}>
+                <Text style={styles.secondaryButtonText}>Cancel booking</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.lockedText}>This reservation can no longer be modified.</Text>
+          )}
+        </View>
       </View>
     );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.screenTitle}>My Reservations</Text>
-            <Text style={styles.subtitle}>Manage your upcoming bookings.</Text>
-          </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.backgroundBase} />
 
+      <View style={styles.container}>
         {loading ? (
-          <ActivityIndicator size="large" color="#1f5fa6" style={styles.loader} />
+          <ActivityIndicator size="large" color={uiColors.primary} style={styles.loader} />
         ) : errorMessage ? (
-          <Text style={styles.errorText}>{errorMessage}</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
         ) : (
           <FlatList
             data={reservations}
             keyExtractor={(item) => item.reservation_id.toString()}
             renderItem={renderReservation}
             contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<Text style={styles.emptyText}>No reservations yet.</Text>}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            ListHeaderComponent={
+              <>
+                <View style={styles.heroCard}>
+                  <View style={styles.heroTopRow}>
+                    <TouchableOpacity style={styles.avatarShell} onPress={handleProfilePhotoPress}>
+                      <View style={styles.avatarCircle}>
+                        <Text style={styles.avatarText}>{avatarInitials}</Text>
+                      </View>
+                      <View style={styles.avatarBadge}>
+                        <Text style={styles.avatarBadgeText}>+</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.heroMainInfo}>
+                      <Text style={styles.heroTitle}>{displayName}</Text>
+                      <View style={styles.heroStatsInline}>
+                        <View style={styles.heroStatInlineItem}>
+                          <Text style={styles.heroStatInlineValue}>{reservations.length}</Text>
+                          <Text style={styles.heroStatInlineLabel}>Total</Text>
+                        </View>
+                        <View style={styles.heroStatInlineItem}>
+                          <Text style={styles.heroStatInlineValue}>{activeReservations}</Text>
+                          <Text style={styles.heroStatInlineLabel}>Active</Text>
+                        </View>
+                        <View style={styles.heroStatInlineItem}>
+                          <Text style={styles.heroStatInlineValue}>{cancelledReservations}</Text>
+                          <Text style={styles.heroStatInlineLabel}>History</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                      <Text style={styles.logoutButtonText}>Logout</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.emailText}>{displayEmail}</Text>
+                </View>
+
+                <View style={styles.sectionHeading}>
+                  <Text style={styles.sectionEyebrow}>Bookings</Text>
+                  <Text style={styles.sectionTitle}>Reservation history</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    View upcoming plans, adjust quantity when available, or cancel a booking.
+                  </Text>
+                </View>
+              </>
+            }
+            ListEmptyComponent={
+              <View style={styles.infoCard}>
+                <Text style={styles.emptyText}>No reservations yet.</Text>
+              </View>
+            }
           />
         )}
       </View>
@@ -240,129 +376,337 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: uiColors.background
+    backgroundColor: '#120f14'
+  },
+  backgroundBase: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#120f14'
   },
   container: {
     flex: 1,
-    padding: 16
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 0
   },
-  headerRow: {
+  listContent: {
+    paddingBottom: 32
+  },
+  heroCard: {
+    backgroundColor: '#1c1720',
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 24
+  },
+  heroTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    gap: 14
   },
-  screenTitle: {
-    fontSize: 28,
+  avatarShell: {
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  avatarCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#2a2230',
+    borderWidth: 1,
+    borderColor: '#403347',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...cardShadow
+  },
+  avatarText: {
+    color: '#fff7eb',
+    fontSize: 26,
+    fontWeight: '800'
+  },
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: uiColors.accent,
+    borderWidth: 1,
+    borderColor: '#1c1720',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  avatarBadgeText: {
+    color: '#22161a',
+    fontSize: 14,
     fontWeight: '800',
-    color: uiColors.text
+    lineHeight: 16
   },
-  subtitle: {
-    color: uiColors.textMuted,
+  heroMainInfo: {
+    flex: 1,
+    justifyContent: 'center'
+  },
+  heroTitle: {
+    fontSize: 26,
+    color: '#fff6e7',
+    fontWeight: '800'
+  },
+  heroStatsInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    marginTop: 8
+  },
+  heroStatInlineItem: {
+    alignItems: 'flex-start'
+  },
+  heroStatInlineValue: {
+    color: '#fff1df',
+    fontSize: 17,
+    fontWeight: '700'
+  },
+  heroStatInlineLabel: {
+    color: '#a99aa4',
+    fontSize: 12,
     marginTop: 2
   },
   logoutButton: {
-    backgroundColor: '#334155',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10
-  },
-  logoutText: {
-    color: uiColors.surface,
-    fontWeight: '600'
-  },
-  listContent: {
-    paddingBottom: 24
-  },
-  card: {
-    backgroundColor: uiColors.surface,
+    backgroundColor: uiColors.buttonGhost,
     borderWidth: 1,
-    borderColor: uiColors.border,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 12,
+    borderColor: uiColors.buttonGhostBorder,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 999
+  },
+  logoutButtonText: {
+    color: uiColors.heroText,
+    textAlign: 'center',
+    fontWeight: '700',
+    fontSize: 14
+  },
+  emailText: {
+    marginTop: 14,
+    marginLeft: 104,
+    color: '#b8aab2',
+    fontSize: 15
+  },
+  sectionHeading: {
+    paddingHorizontal: 4,
+    marginBottom: 14
+  },
+  sectionEyebrow: {
+    fontSize: 12,
+    color: uiColors.accent,
+    fontWeight: '600',
+    marginBottom: 6
+  },
+  sectionTitle: {
+    color: '#fff6e7',
+    fontSize: 25,
+    fontWeight: '800'
+  },
+  sectionSubtitle: {
+    color: '#a99aa4',
+    marginTop: 8,
+    lineHeight: 20,
+    maxWidth: 440
+  },
+  reservationCard: {
+    backgroundColor: '#1c1720',
+    borderWidth: 1,
+    borderColor: '#34293a',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
     ...cardShadow
   },
-  title: {
+  reservationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 10
+  },
+  reservationTitleWrap: {
+    flex: 1
+  },
+  reservationKicker: {
+    color: '#9e8d97',
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4
+  },
+  reservationTitle: {
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 4,
-    color: uiColors.text
+    color: '#fff6e7'
   },
-  meta: {
-    color: uiColors.textMuted,
-    marginBottom: 2
+  reservationSchedule: {
+    color: '#d7c7ba',
+    marginTop: 4,
+    lineHeight: 18,
+    fontSize: 13
+  },
+  reservationVenue: {
+    color: '#aa98a2',
+    marginTop: 2,
+    fontSize: 12
   },
   statusPill: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    marginBottom: 10,
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 4
+    paddingVertical: 5
   },
   statusActive: {
-    backgroundColor: '#eaf8f1'
+    backgroundColor: '#20362b'
   },
   statusCancelled: {
-    backgroundColor: '#fdecec'
+    backgroundColor: '#41272b'
   },
   statusText: {
     fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 0.4,
-    color: uiColors.text
+    fontSize: 11,
+    letterSpacing: 0.3,
+    color: '#f7ecdf'
   },
-  actionsContainer: {
+  reservationMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: 10,
+    marginTop: 2
+  },
+  metaStat: {
+    flex: 1,
+    paddingHorizontal: 4
+  },
+  metaDivider: {
+    width: 1,
+    backgroundColor: '#332a38'
+  },
+  metaStatLabel: {
+    color: '#9e8d97',
+    fontSize: 10,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6
+  },
+  metaStatValue: {
+    color: '#fff6e7',
+    fontWeight: '600',
+    fontSize: 12,
+    lineHeight: 16
+  },
+  inlineDetailRow: {
+    paddingTop: 10,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: '#332a38'
+  },
+  inlineDetailLabel: {
+    color: '#9e8d97',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 4
+  },
+  inlineDetailValue: {
+    color: '#fff6e7',
+    fontWeight: '600',
+    fontSize: 12
+  },
+  reservationFooter: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#332a38'
+  },
+  reservationActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap'
+  },
+  stackedActions: {
     gap: 8
   },
-  quantityInput: {
-    width: 64,
-    borderWidth: 1,
-    borderColor: uiColors.border,
-    borderRadius: 10,
-    paddingHorizontal: 8,
+  inputShell: {
+    minWidth: 70,
+    paddingHorizontal: 10,
     paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#46384d',
+    backgroundColor: '#241d29'
+  },
+  inputLabel: {
+    color: '#9e8d97',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2
+  },
+  quantityInput: {
+    minWidth: 34,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     textAlign: 'center',
-    color: uiColors.text,
-    backgroundColor: uiColors.surface
-  },
-  updateButton: {
-    backgroundColor: uiColors.success,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10
-  },
-  cancelButton: {
-    backgroundColor: uiColors.danger,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10
-  },
-  buttonText: {
-    color: uiColors.surface,
+    color: '#fff6e7',
+    backgroundColor: 'transparent',
+    fontSize: 16,
     fontWeight: '700'
   },
+  updateButton: {
+    backgroundColor: uiColors.accent,
+    borderWidth: 1,
+    borderColor: '#e0b869',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    ...cardShadow
+  },
+  cancelButton: {
+    backgroundColor: uiColors.buttonDangerBg,
+    borderWidth: 1,
+    borderColor: uiColors.buttonDangerBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999
+  },
+  primaryButtonText: {
+    color: '#24161b',
+    fontWeight: '700',
+    fontSize: 13
+  },
+  secondaryButtonText: {
+    color: uiColors.buttonDangerText,
+    fontWeight: '600',
+    fontSize: 13
+  },
   buttonDisabled: {
-    opacity: 0.7
+    opacity: 0.55
   },
   lockedText: {
-    color: '#64748b',
-    fontStyle: 'italic'
+    color: '#ae9ea8',
+    lineHeight: 18,
+    fontSize: 12
+  },
+  infoCard: {
+    backgroundColor: '#1c1720',
+    borderWidth: 1,
+    borderColor: '#34293a',
+    borderRadius: 18,
+    padding: 20,
+    ...cardShadow
   },
   loader: {
     marginTop: 24
   },
   emptyText: {
     textAlign: 'center',
-    color: uiColors.textMuted,
-    marginTop: 24
+    color: '#b8aab2'
   },
   errorText: {
     textAlign: 'center',
-    color: uiColors.danger,
-    marginTop: 24
+    color: '#ff9b90',
+    lineHeight: 20
   }
 });

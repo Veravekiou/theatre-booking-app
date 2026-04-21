@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed:init": "node scripts/seedInitialData.js",
+    "seed:showtimes": "node scripts/seedShowtimeVariety.js",
+    "seed": "npm run seed:init && npm run seed:showtimes"
   },
   "keywords": [],
   "author": "",

@@ -90,7 +90,15 @@ const getShowtimes = async (req, res) => {
       params
     );
 
-    res.json(showtimes);
+    // Format show_date as YYYY-MM-DD string for all records
+    const formattedShowtimes = showtimes.map((showtime) => ({
+      ...showtime,
+      show_date: showtime.show_date instanceof Date
+        ? showtime.show_date.toISOString().split('T')[0]
+        : showtime.show_date
+    }));
+
+    res.json(formattedShowtimes);
   } catch (error) {
     res.status(500).json({ message: error.message });
   } finally {

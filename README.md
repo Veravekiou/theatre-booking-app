@@ -1,28 +1,21 @@
 # Theatre Booking App
 
-Theatre Booking App is a full-stack application for browsing theatre productions, viewing available showtimes, selecting seats, and managing reservations.
+Theatre Booking App is a full-stack mobile booking system for theatre performances. Users can register, log in, browse productions, view available showtimes, select seats, and manage their reservations from a React Native app connected to a Node.js REST API and a MariaDB database.
 
-The project consists of:
+## Features
 
-- `frontend/`: Expo React Native application
-- `backend/`: Express.js REST API with MariaDB
-
-## Functionality
-
-The application supports the following core features:
-
-- User registration and login with JWT-based authentication
-- Browse theatre productions with filters for title, theatre, and date
-- View available showtimes for each production
-- Select seats from a visual seating layout
-- Support for reserved and available seat states
-- VIP seat pricing for the front rows
-- Create ticket reservations
-- View reservation history from the user profile
-- Cancel reservations
-- Update reservation quantity when seat-level selection is not used
-- Automatic access-token refresh in the mobile client
-- Transaction-safe reservation handling to reduce double-booking conflicts
+- User registration and login with JWT authentication
+- Secure token storage on the mobile client
+- Automatic access-token refresh
+- Browse theatre productions and showtimes
+- Search and filter shows by title, theatre, and date
+- Seat availability view with reserved and available seat states
+- VIP seat pricing for front rows
+- Create reservations for selected seats
+- View reservation history in the user profile
+- Cancel future reservations
+- Update quantity for reservations without seat-level selection
+- Transaction-safe reservation handling to reduce double booking
 
 ## Tech Stack
 
@@ -31,35 +24,52 @@ The application supports the following core features:
 - Database: MariaDB
 - Authentication: JWT
 
-## Installation
+## Repository Structure
+
+```text
+theatre-booking-app/
+|-- backend/
+|   |-- config/
+|   |-- controllers/
+|   |-- middleware/
+|   |-- routes/
+|   |-- scripts/
+|   |-- services/
+|   |-- sql/
+|   `-- server.js
+|-- frontend/
+|   |-- app/
+|   |-- assets/
+|   |-- components/
+|   |-- constants/
+|   |-- hooks/
+|   |-- services/
+|   `-- utils/
+`-- README.md
+```
+
+## Setup
 
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/Veravekiou/theatre-booking-app.git
 cd theatre-booking-app
 ```
 
-### 2. Set up the database
+### 2. Create the database
 
-Create a MariaDB database and run the schema file:
+Run the schema file:
 
 ```bash
 mysql -u root -p < backend/sql/schema.sql
 ```
 
-This will create the `theatre_booking` database and the required tables:
+This creates the `theatre_booking` database and the required tables.
 
-- `users`
-- `theatres`
-- `shows`
-- `showtimes`
-- `reservations`
-- `reservation_seats`
+### 3. Configure the backend
 
-### 3. Configure environment variables for the backend
-
-Create a file named `.env` inside the `backend/` folder using [backend/.env.example](/c:/theatre-booking-app/backend/.env.example):
+Create `backend/.env` using `backend/.env.example` as a template:
 
 ```env
 DB_HOST=127.0.0.1
@@ -73,7 +83,7 @@ PORT=5000
 
 Notes:
 
-- `JWT_REFRESH_SECRET` can be different from `JWT_SECRET`
+- `JWT_REFRESH_SECRET` may be different from `JWT_SECRET`
 - If `PORT` is omitted, the backend defaults to `5000`
 
 ### 4. Install backend dependencies
@@ -85,18 +95,16 @@ npm install
 
 ### 5. Seed sample data
 
-Run the available seed scripts to insert theatres, shows, and showtimes:
-
 ```bash
 npm run seed
 ```
 
-This command runs:
+This runs:
 
 - `npm run seed:init`
 - `npm run seed:showtimes`
 
-### 6. Start the backend server
+### 6. Start the backend
 
 ```bash
 npm run dev
@@ -108,29 +116,19 @@ or
 npm start
 ```
 
-The API will be available at:
+The API runs at `http://localhost:5000`.
 
-```text
-http://localhost:5000
-```
+### 7. Configure the frontend
 
-### 7. Configure the frontend API URL
-
-The frontend uses:
-
-```text
-EXPO_PUBLIC_API_URL
-```
-
-Create a file named `.env` inside the `frontend/` folder using [frontend/.env.example](/c:/theatre-booking-app/frontend/.env.example):
+Create `frontend/.env` using `frontend/.env.example` as a template:
 
 ```env
 EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:5000/api
 ```
 
-If you run the mobile app on a physical device, replace `YOUR_LOCAL_IP` with the local IP address of the computer running the backend.
+If you run the app on a physical device, replace `YOUR_LOCAL_IP` with the local IP address of the computer running the backend.
 
-If `EXPO_PUBLIC_API_URL` is not set, the app will try to detect the current Expo host automatically. This helps local demos, but setting the variable explicitly is still the safest option for submission and grading.
+If `EXPO_PUBLIC_API_URL` is not set, the app can still try to detect the current Expo host automatically, but setting the variable explicitly is safer for grading and demos.
 
 Example:
 
@@ -139,8 +137,6 @@ EXPO_PUBLIC_API_URL=http://192.168.1.17:5000/api
 ```
 
 ### 8. Install frontend dependencies
-
-Open a new terminal and run:
 
 ```bash
 cd frontend
@@ -153,16 +149,14 @@ npm install
 npx expo start
 ```
 
-You can then run the application using:
+You can run the app with:
 
 - Expo Go
 - Android emulator
 - iOS simulator
 - Web preview
 
-## API Overview
-
-Main backend endpoints:
+## Main API Endpoints
 
 - `POST /api/register`
 - `POST /api/login`
@@ -179,44 +173,16 @@ Main backend endpoints:
 
 ## Architecture Notes
 
-- Frontend: Expo React Native app with Expo Router screens for auth, browsing, seat selection, and profile/history
-- Backend: Express REST API with route/controller separation and JWT middleware
-- Database: MariaDB schema with foreign keys between users, theatres, shows, showtimes, and reservations
-- Booking consistency: reservation creation and updates use database transactions and row locking for seat availability checks
+- Frontend: Expo React Native app with screens for authentication, browsing, showtimes, seat selection, and reservation history
+- Backend: Express REST API with route/controller separation
+- Database: MariaDB schema with foreign keys between users, theatres, shows, showtimes, reservations, and reserved seats
+- Concurrency handling: reservations use database transactions and row locking for better seat consistency
 
-## Submission Support
+## Submission Notes
 
-- Environment examples are included in [backend/.env.example](/c:/theatre-booking-app/backend/.env.example) and [frontend/.env.example](/c:/theatre-booking-app/frontend/.env.example).
+- `backend/.env.example` and `frontend/.env.example` are included for setup guidance
+- The backend must be running before the frontend can fetch data
+- For real-device testing, frontend and backend must be on the same local network
+- Seed scripts populate sample theatres, shows, and multiple future showtimes
 
-## Project Structure
-
-```text
-theatre-booking-app/
-|-- backend/
-|   |-- config/
-|   |-- controllers/
-|   |-- middleware/
-|   |-- routes/
-|   |-- scripts/
-|   |-- sql/
-|   `-- server.js
-|-- frontend/
-|   |-- app/
-|   |-- assets/
-|   |-- components/
-|   |-- constants/
-|   |-- hooks/
-|   |-- services/
-|   `-- utils/
-`-- README.md
-```
-
-## Notes
-
-- The backend must be running before the frontend can fetch data.
-- For mobile testing on a real device, frontend and backend must be on the same local network.
-- The provided seed scripts populate the database with sample theatres, shows, and multiple future showtimes.
-
-## Authors
-
-Created as a theatre booking system assignment/project.
+Created for the CN6035 Mobile & Distributed Systems assignment.

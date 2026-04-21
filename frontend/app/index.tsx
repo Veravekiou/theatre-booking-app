@@ -36,7 +36,7 @@ export default function Index() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ActivityIndicator size="large" color="#1f5fa6" />
+      <ActivityIndicator size="large" color="#8f3a3a" />
     </SafeAreaView>
   );
 }
@@ -46,6 +46,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f2f2f2'
+    backgroundColor: '#f7f1e8'
   }
 });
+

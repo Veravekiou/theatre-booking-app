@@ -1,5 +1,8 @@
 const pool = require('../config/db');
-const { getEffectiveSeatState } = require('../services/seatService');
+const {
+  VIP_PRICE_MULTIPLIER,
+  getEffectiveSeatState
+} = require('../services/seatService');
 
 const getSeatAvailability = async (req, res) => {
   let conn;
@@ -44,13 +47,19 @@ const getSeatAvailability = async (req, res) => {
       status: seatState.reservedSeatSet.has(seatNumber) ? 'reserved' : 'available'
     }));
 
+    // Format show_date as YYYY-MM-DD string
+    const showDate = showtime.show_date instanceof Date
+      ? showtime.show_date.toISOString().split('T')[0]
+      : showtime.show_date;
+
     res.json({
       showtime_id: showtime.showtime_id,
       show_title: showtime.show_title,
-      show_date: showtime.show_date,
+      show_date: showDate,
       show_time: showtime.show_time,
       hall: showtime.hall,
       price: showtime.price,
+      vip_price_multiplier: VIP_PRICE_MULTIPLIER,
       total_seats: capacity,
       reserved_seats: reservedSeats,
       available_seats: availableSeats,

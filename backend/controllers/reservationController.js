@@ -1,7 +1,8 @@
 const pool = require('../config/db');
 const {
   getEffectiveSeatState,
-  normalizeSeatNumbers
+  normalizeSeatNumbers,
+  calculateSeatPricing
 } = require('../services/seatService');
 
 const parsePositiveInteger = (value) => {
@@ -57,6 +58,7 @@ const createReservation = async (req, res) => {
       `SELECT
          showtime_id,
          capacity,
+         price,
          CASE
            WHEN TIMESTAMP(show_date, show_time) > NOW() THEN 1
            ELSE 0
@@ -139,6 +141,12 @@ const createReservation = async (req, res) => {
       );
     }
 
+    const pricing = calculateSeatPricing(
+      showtime[0].price,
+      requestedSeatNumbers,
+      effectiveQuantity
+    );
+
     await conn.commit();
 
     res.status(201).json({
@@ -146,6 +154,10 @@ const createReservation = async (req, res) => {
       reservationId,
       quantity: effectiveQuantity,
       seat_numbers: requestedSeatNumbers,
+      base_price: pricing.basePrice,
+      vip_price_multiplier: pricing.vipPriceMultiplier,
+      vip_seat_count: pricing.vipSeatCount,
+      total_price: pricing.totalPrice,
       remaining_seats: seatState.availableSeatNumbers.length - effectiveQuantity
     });
   } catch (error) {
@@ -222,8 +234,23 @@ const getUserReservations = async (req, res) => {
             .filter((seatNumber) => seatNumber.length > 0)
         : [];
 
+      const pricing = calculateSeatPricing(
+        reservation.price,
+        seatNumbers,
+        reservation.quantity
+      );
+
+      // Format show_date as YYYY-MM-DD string
+      const showDate = reservation.show_date instanceof Date
+        ? reservation.show_date.toISOString().split('T')[0]
+        : reservation.show_date;
+
       return {
         ...reservation,
+        show_date: showDate,
+        vip_price_multiplier: pricing.vipPriceMultiplier,
+        vip_seat_count: pricing.vipSeatCount,
+        total_price: pricing.totalPrice,
         seat_numbers: seatNumbers,
         has_seat_selection: seatNumbers.length > 0 ? 1 : 0
       };

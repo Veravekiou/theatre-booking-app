@@ -5,10 +5,36 @@ import { Platform } from 'react-native';
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 const USER_KEY = 'auth_user';
+const AVATAR_URI_PREFIX = 'profile_avatar_uri:';
 const LEGACY_KEYS = {
   [TOKEN_KEY]: 'token',
   [REFRESH_TOKEN_KEY]: 'refreshToken',
   [USER_KEY]: 'user'
+};
+
+const getAvatarKey = (user) => {
+  const email = String(user?.email || '').trim().toLowerCase();
+  return email ? `${AVATAR_URI_PREFIX}${email}` : null;
+};
+
+const getStoredAvatarUri = async (user) => {
+  const avatarKey = getAvatarKey(user);
+  if (!avatarKey) {
+    return null;
+  }
+
+  return AsyncStorage.getItem(avatarKey);
+};
+
+const saveStoredAvatarUri = async (user) => {
+  const avatarKey = getAvatarKey(user);
+  const avatarUri = String(user?.avatar_uri || '').trim();
+
+  if (!avatarKey || !avatarUri) {
+    return;
+  }
+
+  await AsyncStorage.setItem(avatarKey, avatarUri);
 };
 
 const canUseSecureStore = async () => {
@@ -79,7 +105,11 @@ export const saveSession = async (token, refreshToken, user) => {
   if (refreshToken) {
     await setSecureValue(REFRESH_TOKEN_KEY, refreshToken);
   }
-  await setSecureValue(USER_KEY, JSON.stringify(user));
+
+  const avatarUri = user?.avatar_uri || await getStoredAvatarUri(user);
+  const sessionUser = avatarUri ? { ...user, avatar_uri: avatarUri } : user;
+
+  await setSecureValue(USER_KEY, JSON.stringify(sessionUser));
 };
 
 export const getToken = async () => {
@@ -109,6 +139,11 @@ export const getUser = async () => {
   } catch {
     return null;
   }
+};
+
+export const saveUser = async (user) => {
+  await saveStoredAvatarUri(user);
+  await setSecureValue(USER_KEY, JSON.stringify(user));
 };
 
 export const clearSession = async () => {

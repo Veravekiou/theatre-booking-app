@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   ImageBackground,
   ImageSourcePropType,
   NativeScrollEvent,
@@ -14,10 +15,11 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import api from '../../services/api';
 import { cardShadow, uiColors } from '../../constants/ui';
 import { getErrorMessage } from '../../utils/errorMessage';
+import { getUser } from '../../services/secureStorage';
 
 type Show = {
   show_id: number;
@@ -27,6 +29,12 @@ type Show = {
   age_rating: string | null;
   theatre_name: string;
   theatre_location: string;
+};
+
+type SessionUser = {
+  name?: string;
+  email?: string;
+  avatar_uri?: string;
 };
 
 const CAROUSEL_CARD_WIDTH = 102;
@@ -100,12 +108,24 @@ export default function HomeScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [user, setUser] = useState<SessionUser | null>(null);
 
   const carouselRef = useRef<FlatList<Show>>(null);
 
   useEffect(() => {
     fetchShows();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUser = async () => {
+        const storedUser = await getUser();
+        setUser(storedUser);
+      };
+
+      loadUser();
+    }, [])
+  );
 
   const fetchShows = async () => {
     try {
@@ -158,6 +178,14 @@ export default function HomeScreen() {
   };
 
   const activeShow = filteredShows[activeIndex];
+  const displayName = user?.name?.trim() || user?.email?.trim() || 'Theatre Guest';
+  const avatarUri = user?.avatar_uri?.trim();
+  const nameParts = displayName.split(/[\s@.]+/).filter(Boolean);
+  const avatarInitials =
+    nameParts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'TG';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -190,7 +218,11 @@ export default function HomeScreen() {
               onPress={() => {
                 router.push('/(tabs)/profile');
               }}>
-              <Text style={styles.profileButtonText}>Profile</Text>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.profileButtonImage} />
+              ) : (
+                <Text style={styles.profileButtonText}>{avatarInitials}</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -337,17 +369,25 @@ const styles = StyleSheet.create({
     ...cardShadow
   },
   profileButton: {
-    backgroundColor: 'rgba(255,246,231,0.12)',
-    borderRadius: 999,
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,246,231,0.16)',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,246,231,0.18)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderColor: 'rgba(255,246,231,0.28)',
+    overflow: 'hidden',
     ...cardShadow
+  },
+  profileButtonImage: {
+    width: '100%',
+    height: '100%'
   },
   profileButtonText: {
     color: uiColors.heroText,
-    fontWeight: '700'
+    fontSize: 15,
+    fontWeight: '800'
   },
   loader: {
     marginTop: 32

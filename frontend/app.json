@@ -39,6 +39,12 @@
           }
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow theatreBookingApp to choose a profile photo."
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "experiments": {

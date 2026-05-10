@@ -3,16 +3,20 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   SafeAreaView,
   StyleSheet,
+  StyleProp,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  ViewStyle
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
-import { clearSession, getUser } from '../../services/secureStorage';
+import { clearSession, getUser, saveUser } from '../../services/secureStorage';
 import { cardShadow, uiColors } from '../../constants/ui';
 import { getErrorMessage } from '../../utils/errorMessage';
 import { formatCurrency, formatShowDateTime } from '../../utils/formatters';
@@ -38,6 +42,44 @@ type Reservation = {
 type SessionUser = {
   name?: string;
   email?: string;
+  avatar_uri?: string;
+};
+
+type ReservationViewState = {
+  label: string;
+  kicker: string;
+  statusStyle: StyleProp<ViewStyle>;
+};
+
+const isUpcomingActiveReservation = (item: Reservation) => {
+  return item.status === 'active' && Number(item.can_modify) === 1;
+};
+
+const getShowtimeValue = (item: Reservation) => {
+  const parsed = new Date(`${item.show_date}T${item.show_time}`).getTime();
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+};
+
+const getCreatedAtValue = (item: Reservation) => {
+  const parsed = new Date(item.created_at).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const sortReservationsForProfile = (rows: Reservation[]) => {
+  return [...rows].sort((left, right) => {
+    const leftIsActive = isUpcomingActiveReservation(left);
+    const rightIsActive = isUpcomingActiveReservation(right);
+
+    if (leftIsActive !== rightIsActive) {
+      return leftIsActive ? -1 : 1;
+    }
+
+    if (leftIsActive && rightIsActive) {
+      return getShowtimeValue(left) - getShowtimeValue(right);
+    }
+
+    return getCreatedAtValue(right) - getCreatedAtValue(left);
+  });
 };
 
 export default function ProfileScreen() {
@@ -89,7 +131,7 @@ export default function ProfileScreen() {
         seat_numbers: Array.isArray(row.seat_numbers) ? row.seat_numbers : []
       }));
 
-      setReservations(normalizedRows);
+      setReservations(sortReservationsForProfile(normalizedRows));
 
       const drafts: Record<number, string> = {};
       normalizedRows.forEach((row) => {
@@ -176,14 +218,63 @@ export default function ProfileScreen() {
     router.replace('/login');
   };
 
-  const handleProfilePhotoPress = () => {
-    Alert.alert('Profile photo', 'Photo upload can be connected here.');
+  const handleProfilePhotoPress = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Allow photo library access to choose a profile photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    const nextUser = {
+      ...(user || {}),
+      avatar_uri: result.assets[0].uri
+    };
+
+    setUser(nextUser);
+    await saveUser(nextUser);
   };
 
-  const activeReservations = reservations.filter((item) => item.status === 'active').length;
-  const cancelledReservations = reservations.filter((item) => item.status !== 'active').length;
+  const getReservationViewState = (item: Reservation): ReservationViewState => {
+    if (item.status !== 'active') {
+      return {
+        label: 'CANCELLED',
+        kicker: 'Cancelled booking',
+        statusStyle: styles.statusCancelled
+      };
+    }
+
+    if (Number(item.can_modify) !== 1) {
+      return {
+        label: 'COMPLETED',
+        kicker: 'Past booking',
+        statusStyle: styles.statusCompleted
+      };
+    }
+
+    return {
+      label: 'ACTIVE',
+      kicker: 'Upcoming booking',
+      statusStyle: styles.statusActive
+    };
+  };
+
+  const activeReservations = reservations.filter(isUpcomingActiveReservation).length;
+  const historyReservations = reservations.length - activeReservations;
   const displayName = user?.name?.trim() || 'Theatre Guest';
   const displayEmail = user?.email?.trim() || 'Signed in member';
+  const avatarUri = user?.avatar_uri?.trim();
   const nameParts = displayName.split(' ').filter(Boolean);
   const avatarInitials = nameParts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'TG';
 
@@ -192,12 +283,13 @@ export default function ProfileScreen() {
     const hasSeatSelection = Number(item.has_seat_selection) === 1;
     const busy = busyReservationId === item.reservation_id;
     const seatsLabel = (item.seat_numbers || []).join(', ');
+    const viewState = getReservationViewState(item);
 
     return (
       <View style={styles.reservationCard}>
         <View style={styles.reservationHeader}>
           <View style={styles.reservationTitleWrap}>
-            <Text style={styles.reservationKicker}>{item.status === 'active' ? 'Upcoming booking' : 'Past booking'}</Text>
+            <Text style={styles.reservationKicker}>{viewState.kicker}</Text>
             <Text style={styles.reservationTitle}>{item.show_title}</Text>
             <Text style={styles.reservationSchedule}>
               {formatShowDateTime(item.show_date, item.show_time)}
@@ -207,9 +299,9 @@ export default function ProfileScreen() {
           <View
             style={[
               styles.statusPill,
-              item.status === 'active' ? styles.statusActive : styles.statusCancelled
+              viewState.statusStyle
             ]}>
-            <Text style={styles.statusText}>{String(item.status).toUpperCase()}</Text>
+            <Text style={styles.statusText}>{viewState.label}</Text>
           </View>
         </View>
 
@@ -319,7 +411,11 @@ export default function ProfileScreen() {
                   <View style={styles.heroTopRow}>
                     <TouchableOpacity style={styles.avatarShell} onPress={handleProfilePhotoPress}>
                       <View style={styles.avatarCircle}>
-                        <Text style={styles.avatarText}>{avatarInitials}</Text>
+                        {avatarUri ? (
+                          <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                        ) : (
+                          <Text style={styles.avatarText}>{avatarInitials}</Text>
+                        )}
                       </View>
                       <View style={styles.avatarBadge}>
                         <Text style={styles.avatarBadgeText}>+</Text>
@@ -338,7 +434,7 @@ export default function ProfileScreen() {
                           <Text style={styles.heroStatInlineLabel}>Active</Text>
                         </View>
                         <View style={styles.heroStatInlineItem}>
-                          <Text style={styles.heroStatInlineValue}>{cancelledReservations}</Text>
+                          <Text style={styles.heroStatInlineValue}>{historyReservations}</Text>
                           <Text style={styles.heroStatInlineLabel}>History</Text>
                         </View>
                       </View>
@@ -415,7 +511,12 @@ const styles = StyleSheet.create({
     borderColor: '#403347',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     ...cardShadow
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%'
   },
   avatarText: {
     color: '#fff7eb',
@@ -470,15 +571,15 @@ const styles = StyleSheet.create({
     marginTop: 2
   },
   logoutButton: {
-    backgroundColor: uiColors.buttonGhost,
+    backgroundColor: uiColors.buttonDangerBg,
     borderWidth: 1,
-    borderColor: uiColors.buttonGhostBorder,
+    borderColor: uiColors.buttonDangerBorder,
     paddingHorizontal: 16,
     paddingVertical: 11,
     borderRadius: 999
   },
   logoutButtonText: {
-    color: uiColors.heroText,
+    color: uiColors.buttonDangerText,
     textAlign: 'center',
     fontWeight: '700',
     fontSize: 14
@@ -561,6 +662,9 @@ const styles = StyleSheet.create({
   },
   statusCancelled: {
     backgroundColor: '#41272b'
+  },
+  statusCompleted: {
+    backgroundColor: '#32303a'
   },
   statusText: {
     fontWeight: '700',

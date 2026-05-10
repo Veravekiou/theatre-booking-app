@@ -16,7 +16,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
-import { clearSession, getUser, saveUser } from '../../services/secureStorage';
+import { clearSession, deleteUserAvatar, getUser, saveUser } from '../../services/secureStorage';
 import { cardShadow, uiColors } from '../../constants/ui';
 import { getErrorMessage } from '../../utils/errorMessage';
 import { formatCurrency, formatShowDateTime } from '../../utils/formatters';
@@ -246,6 +246,15 @@ export default function ProfileScreen() {
     await saveUser(nextUser);
   };
 
+  const handleDeleteProfilePhoto = async () => {
+    if (!avatarUri) {
+      return;
+    }
+
+    const nextUser = await deleteUserAvatar(user || {});
+    setUser(nextUser);
+  };
+
   const getReservationViewState = (item: Reservation): ReservationViewState => {
     if (item.status !== 'active') {
       return {
@@ -409,18 +418,27 @@ export default function ProfileScreen() {
               <>
                 <View style={styles.heroCard}>
                   <View style={styles.heroTopRow}>
-                    <TouchableOpacity style={styles.avatarShell} onPress={handleProfilePhotoPress}>
-                      <View style={styles.avatarCircle}>
-                        {avatarUri ? (
-                          <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
-                        ) : (
-                          <Text style={styles.avatarText}>{avatarInitials}</Text>
-                        )}
-                      </View>
-                      <View style={styles.avatarBadge}>
-                        <Text style={styles.avatarBadgeText}>+</Text>
-                      </View>
-                    </TouchableOpacity>
+                    <View style={styles.avatarColumn}>
+                      <TouchableOpacity style={styles.avatarShell} onPress={handleProfilePhotoPress}>
+                        <View style={styles.avatarCircle}>
+                          {avatarUri ? (
+                            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                          ) : (
+                            <Text style={styles.avatarText}>{avatarInitials}</Text>
+                          )}
+                        </View>
+                        <View style={styles.avatarBadge}>
+                          <Text style={styles.avatarBadgeText}>+</Text>
+                        </View>
+                      </TouchableOpacity>
+                      {avatarUri ? (
+                        <TouchableOpacity
+                          style={styles.deletePhotoButton}
+                          onPress={handleDeleteProfilePhoto}>
+                          <Text style={styles.deletePhotoText}>Delete photo</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
 
                     <View style={styles.heroMainInfo}>
                       <Text style={styles.heroTitle}>{displayName}</Text>
@@ -498,6 +516,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14
   },
+  avatarColumn: {
+    width: 88,
+    alignItems: 'center'
+  },
   avatarShell: {
     alignItems: 'center',
     justifyContent: 'center'
@@ -541,6 +563,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     lineHeight: 16
+  },
+  deletePhotoButton: {
+    marginTop: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 2
+  },
+  deletePhotoText: {
+    color: uiColors.buttonDangerText,
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center'
   },
   heroMainInfo: {
     flex: 1,

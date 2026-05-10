@@ -146,6 +146,18 @@ export const saveUser = async (user) => {
   await setSecureValue(USER_KEY, JSON.stringify(user));
 };
 
+export const deleteUserAvatar = async (user) => {
+  const avatarKey = getAvatarKey(user);
+  if (avatarKey) {
+    await AsyncStorage.removeItem(avatarKey);
+  }
+
+  const nextUser = { ...(user || {}) };
+  delete nextUser.avatar_uri;
+  await setSecureValue(USER_KEY, JSON.stringify(nextUser));
+  return nextUser;
+};
+
 export const clearSession = async () => {
   await deleteSecureValue(TOKEN_KEY);
   await deleteSecureValue(REFRESH_TOKEN_KEY);
